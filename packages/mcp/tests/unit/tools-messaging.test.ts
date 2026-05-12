@@ -1,0 +1,78 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { describe, expect, it, vi } from "vitest";
+import { buildServer } from "../../src/server.js";
+import type { Transport } from "../../src/transports/types.js";
+
+function fakeTransport(overrides: Partial<Transport> = {}): Transport {
+  return {
+    init: vi.fn(),
+    whoami: vi.fn().mockResolvedValue({ handle: "me", display_name: "Me", chat_id: "-100" }),
+    listContacts: vi.fn().mockResolvedValue([]),
+    send: vi.fn().mockResolvedValue({ message_id: "42", timestamp: new Date() }),
+    receive: vi.fn().mockResolvedValue([]),
+    waitForMessages: vi.fn().mockResolvedValue([]),
+    close: vi.fn(),
+    ...overrides
+  };
+}
+
+async function callTool(client: Client, name: string, args: object) {
+  const r = await client.callTool({ name, arguments: args });
+  const text = (r.content as { type: string; text: string }[])[0]!.text;
+  return JSON.parse(text) as { ok: boolean; data?: any; error?: any };
+}
+
+async function connect(t: Transport) {
+  const server = buildServer({ transport: t });
+  const [c, s] = InMemoryTransport.createLinkedPair();
+  await server.connect(s);
+  const client = new Client({ name: "t", version: "0" }, { capabilities: {} });
+  await client.connect(c);
+  return client;
+}
+
+describe("messaging tools", () => {
+  it("send_message passes 'to' and 'body' to transport.send", async () => {
+    const t = fakeTransport();
+    const client = await connect(t);
+    const r = await callTool(client, "send_message", {
+      to: "marco_frontend_bot",
+      body: "hola"
+    });
+    expect(r.ok).toBe(true);
+    expect(t.send).toHaveBeenCalledWith({
+      to: "marco_frontend_bot",
+      body: "hola",
+      reply_to_message_id: undefined
+    });
+  });
+
+  it("send_message rejects empty body", async () => {
+    const client = await connect(fakeTransport());
+    const r = await callTool(client, "send_message", { to: "x", body: "" });
+    expect(r.ok).toBe(false);
+  });
+
+  it("read_inbox calls transport.receive with the given filter", async () => {
+    const t = fakeTransport({
+      receive: vi.fn().mockResolvedValue([
+        { id: "1:1", from_handle: "marco", body: "hi", timestamp: new Date(), is_mention: true }
+      ])
+    });
+    const client = await connect(t);
+    const r = await callTool(client, "read_inbox", { filter: "mentions", limit: 50 });
+    expect(r.ok).toBe(true);
+    expect(t.receive).toHaveBeenCalledWith({ filter: "mentions", limit: 50, since_message_id: undefined });
+    expect(r.data).toHaveLength(1);
+  });
+
+  it("wait_for_messages forwards timeout and filter", async () => {
+    const t = fakeTransport({
+      waitForMessages: vi.fn().mockResolvedValue([])
+    });
+    const client = await connect(t);
+    await callTool(client, "wait_for_messages", { timeout_seconds: 10, filter: "mentions" });
+    expect(t.waitForMessages).toHaveBeenCalledWith({ timeout_seconds: 10, filter: "mentions" });
+  });
+});
