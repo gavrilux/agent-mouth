@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ToolDef } from "../server.js";
+import { loadConfig, saveConfig } from "../config.js";
 
 const FilterEnum = z.enum(["mentions", "replies", "all"]);
 
@@ -71,5 +72,57 @@ export const waitForMessagesTool: ToolDef = {
       })
       .parse(input);
     return transport.waitForMessages(parsed);
+  }
+};
+
+export const getThreadTool: ToolDef = {
+  name: "get_thread",
+  description: "Returns the reply chain for a given message_id. Uses Telegram's reply structure.",
+  inputSchema: {
+    type: "object",
+    required: ["reply_to_message_id"],
+    properties: {
+      reply_to_message_id: { type: "string" },
+      limit: { type: "integer", minimum: 1, maximum: 200 }
+    },
+    additionalProperties: false
+  },
+  handler: async (input, { transport }) => {
+    const parsed = z
+      .object({
+        reply_to_message_id: z.string(),
+        limit: z.number().int().min(1).max(200).optional().default(50)
+      })
+      .parse(input);
+    // For now, fetch recent and filter by reply chain. Telegram doesn't have a "thread fetch" endpoint.
+    const all = await transport.receive({ filter: "all", limit: parsed.limit });
+    return all.filter(
+      (m) => m.id.endsWith(`:${parsed.reply_to_message_id}`) || m.reply_to_message_id === parsed.reply_to_message_id
+    );
+  }
+};
+
+export const markReadTool: ToolDef = {
+  name: "mark_read",
+  description: "Marks messages up to a given message_id as read. Persists last_seen_update_id locally.",
+  inputSchema: {
+    type: "object",
+    required: ["up_to_message_id"],
+    properties: { up_to_message_id: { type: "string" } },
+    additionalProperties: false
+  },
+  handler: async (input, { configPath }) => {
+    const parsed = z.object({ up_to_message_id: z.string() }).parse(input);
+    if (!configPath) {
+      throw new Error("mark_read requires a config file path in server options");
+    }
+    const config = await loadConfig(configPath);
+    if (!config) throw new Error("Config not found");
+
+    // Message id is "<update_id>:<msg_id>" — extract update_id
+    const updateId = Number(parsed.up_to_message_id.split(":")[0] ?? "0");
+    config.last_seen_update_id = Math.max(config.last_seen_update_id, updateId);
+    await saveConfig(configPath, config);
+    return { ok: true, last_seen_update_id: config.last_seen_update_id };
   }
 };

@@ -75,4 +75,45 @@ describe("messaging tools", () => {
     await callTool(client, "wait_for_messages", { timeout_seconds: 10, filter: "mentions" });
     expect(t.waitForMessages).toHaveBeenCalledWith({ timeout_seconds: 10, filter: "mentions" });
   });
+
+  it("get_thread returns the reply chain for a message", async () => {
+    const t = fakeTransport({
+      receive: vi.fn().mockResolvedValue([
+        { id: "1:1", from_handle: "marco", body: "first", timestamp: new Date(), is_mention: false },
+        { id: "2:2", from_handle: "me", body: "reply", timestamp: new Date(), reply_to_message_id: "1", is_mention: false }
+      ])
+    });
+    const client = await connect(t);
+    const r = await callTool(client, "get_thread", { reply_to_message_id: "1", limit: 50 });
+    expect(r.ok).toBe(true);
+    expect(r.data).toHaveLength(2);
+  });
+
+  it("mark_read updates last_seen_update_id in config file", async () => {
+    const { mkdtempSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { saveConfig, loadConfig } = await import("../../src/config.js");
+
+    const tmp = mkdtempSync(join(tmpdir(), "am-"));
+    const configPath = join(tmp, "config.json");
+    await saveConfig(configPath, {
+      transport: "telegram",
+      telegram: { bot_token: "x", chat_id: "-100", handle: "me" },
+      last_seen_update_id: 0
+    });
+
+    const server = buildServer({ transport: fakeTransport(), configPath });
+    const [c, s] = InMemoryTransport.createLinkedPair();
+    await server.connect(s);
+    const client = new Client({ name: "t", version: "0" }, { capabilities: {} });
+    await client.connect(c);
+
+    await callTool(client, "mark_read", { up_to_message_id: "100:50" });
+
+    const loaded = await loadConfig(configPath);
+    expect(loaded?.last_seen_update_id).toBe(100);
+
+    rmSync(tmp, { recursive: true, force: true });
+  });
 });
