@@ -6,3 +6,5 @@ dist/
 coverage/
 .env
 .env.local
+packages/mcp/README.md
+packages/mcp/LICENSE

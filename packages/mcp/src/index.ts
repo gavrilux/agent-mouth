@@ -1,1 +1,2 @@
-export const VERSION = "0.0.1";
+// Keep in sync with packages/mcp/package.json
+export const VERSION = "0.1.0";

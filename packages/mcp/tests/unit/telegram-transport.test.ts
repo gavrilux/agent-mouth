@@ -148,6 +148,43 @@ describe("TelegramTransport", () => {
     expect(msgs[1].is_mention).toBe(false);
   });
 
+  it("waitForMessages passes the correct offset (last_seen_update_id + 1) to getUpdates", async () => {
+    // Re-init with a seeded last_seen_update_id
+    await transport.close();
+    transport = new TelegramTransport();
+    await transport.init({
+      bot_token: "7234567890:AAH-fake-token",
+      chat_id: "-1001234567890",
+      handle: "gavrilo-backend",
+      last_seen_update_id: 50,
+    });
+
+    const getUpdatesSpy = vi.fn().mockResolvedValue([
+      {
+        update_id: 55,
+        message: {
+          message_id: 70,
+          from: { id: 999, is_bot: false, first_name: "X", username: "x_user" },
+          chat: { id: -1001234567890 },
+          date: 1730000000,
+          text: "hi",
+        },
+      },
+    ]);
+    (transport as unknown as { bot: { api: { getUpdates: unknown } } }).bot.api.getUpdates =
+      getUpdatesSpy;
+
+    await transport.waitForMessages({ timeout_seconds: 1, filter: "all" });
+    expect(getUpdatesSpy).toHaveBeenCalledWith(expect.objectContaining({ offset: 51 }));
+
+    // Next call should advance to 56
+    const getUpdatesSpy2 = vi.fn().mockResolvedValue([]);
+    (transport as unknown as { bot: { api: { getUpdates: unknown } } }).bot.api.getUpdates =
+      getUpdatesSpy2;
+    await transport.waitForMessages({ timeout_seconds: 1, filter: "all" });
+    expect(getUpdatesSpy2).toHaveBeenCalledWith(expect.objectContaining({ offset: 56 }));
+  });
+
   it("waitForMessages with filter='mentions' returns only messages that mention me", async () => {
     const getUpdatesSpy = vi.fn().mockResolvedValue([
       {

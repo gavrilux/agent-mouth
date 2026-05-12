@@ -1,5 +1,5 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { defaultConfigPath, loadConfig } from "../config.js";
+import { defaultConfigPath, loadConfig, saveConfig } from "../config.js";
 import { logger } from "../logger.js";
 import { buildServer } from "../server.js";
 import { type TelegramConfig, TelegramTransport } from "../transports/telegram.js";
@@ -12,7 +12,10 @@ export async function serve(): Promise<void> {
     process.exit(1);
   }
   const transport = new TelegramTransport();
-  await transport.init(config.telegram as TelegramConfig);
+  await transport.init({
+    ...config.telegram,
+    last_seen_update_id: config.last_seen_update_id,
+  } as TelegramConfig);
   const server = buildServer({ transport, configPath });
   await server.connect(new StdioServerTransport());
   logger.info({ handle: config.telegram.handle }, "agent-mouth serving over stdio");

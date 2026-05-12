@@ -10,12 +10,13 @@
   "type": "module",
   "bin": { "agent-mouth": "./dist/cli/index.js" },
   "exports": { ".": "./dist/index.js" },
-  "files": ["dist/", "README.md"],
+  "files": ["dist/", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/cli/index.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepublishOnly": "cp ../../README.md ./README.md && cp ../../LICENSE ./LICENSE"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

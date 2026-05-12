@@ -15,6 +15,7 @@ export interface TelegramConfig extends TransportConfig {
   bot_token: string;
   chat_id: string;
   handle: string;
+  last_seen_update_id?: number;
 }
 
 export class TelegramTransport implements Transport {
@@ -22,6 +23,7 @@ export class TelegramTransport implements Transport {
   private chatId = "";
   private handle = "";
   private botUserId = 0;
+  private lastSeenUpdateId = 0;
 
   async init(config: TransportConfig): Promise<void> {
     const c = config as TelegramConfig;
@@ -31,6 +33,7 @@ export class TelegramTransport implements Transport {
     this.bot = new Bot(c.bot_token);
     this.chatId = c.chat_id;
     this.handle = c.handle;
+    this.lastSeenUpdateId = c.last_seen_update_id ?? 0;
 
     // Resolve bot identity for self-filtering
     const me = await this.bot.api.getMe();
@@ -94,10 +97,16 @@ export class TelegramTransport implements Transport {
   }): Promise<ReceivedMessage[]> {
     if (!this.bot) throw new Error("Transport not initialized");
     const updates = await this.bot.api.getUpdates({
+      offset: this.lastSeenUpdateId + 1,
       timeout: args.timeoutSeconds,
       allowed_updates: ["message"],
       limit: args.limit ?? 100,
     });
+
+    // Advance internal offset to prevent re-receiving these updates
+    if (updates.length > 0) {
+      this.lastSeenUpdateId = Math.max(...updates.map((u) => u.update_id));
+    }
 
     const myMention = `@${(await this.whoami()).handle}`.toLowerCase();
     const mapped: ReceivedMessage[] = [];
@@ -126,6 +135,10 @@ export class TelegramTransport implements Transport {
     }
 
     return mapped;
+  }
+
+  getLastSeenUpdateId(): number {
+    return this.lastSeenUpdateId;
   }
 
   async close(): Promise<void> {

@@ -14,8 +14,9 @@ export interface ServerOptions {
 }
 
 export function buildServer(opts: ServerOptions): Server {
+  // Version must match packages/mcp/package.json
   const server = new Server(
-    { name: "agent-mouth", version: "0.0.1" },
+    { name: "agent-mouth", version: "0.1.0" },
     { capabilities: { tools: {} } },
   );
 
