@@ -10,21 +10,35 @@ vi.mock("grammy", () => {
           id: 7234567890,
           is_bot: true,
           first_name: "Gavrilo Backend",
-          username: "gavrilo_backend_bot"
+          username: "gavrilo_backend_bot",
         }),
         getChat: vi.fn().mockResolvedValue({
           id: -1001234567890,
           type: "supergroup",
-          title: "Aurellano Team"
+          title: "Aurellano Team",
         }),
         getChatAdministrators: vi.fn().mockResolvedValue([
           { user: { id: 1, is_bot: false, first_name: "Gavrilo", username: "gavrilom" } },
-          { user: { id: 7234567890, is_bot: true, first_name: "Gavrilo Backend", username: "gavrilo_backend_bot" } },
-          { user: { id: 7345678901, is_bot: true, first_name: "Marco Front", username: "marco_frontend_bot" } }
-        ])
+          {
+            user: {
+              id: 7234567890,
+              is_bot: true,
+              first_name: "Gavrilo Backend",
+              username: "gavrilo_backend_bot",
+            },
+          },
+          {
+            user: {
+              id: 7345678901,
+              is_bot: true,
+              first_name: "Marco Front",
+              username: "marco_frontend_bot",
+            },
+          },
+        ]),
       };
       constructor(public token: string) {}
-    }
+    },
   };
 });
 
@@ -36,7 +50,7 @@ describe("TelegramTransport", () => {
     await transport.init({
       bot_token: "7234567890:AAH-fake-token",
       chat_id: "-1001234567890",
-      handle: "gavrilo-backend"
+      handle: "gavrilo-backend",
     });
   });
 
@@ -64,19 +78,20 @@ describe("TelegramTransport", () => {
     // Extend the Bot mock with sendMessage
     const sendMessageSpy = vi.fn().mockResolvedValue({
       message_id: 42,
-      date: Math.floor(Date.now() / 1000)
+      date: Math.floor(Date.now() / 1000),
     });
-    (transport as any).bot.api.sendMessage = sendMessageSpy;
+    (transport as unknown as { bot: { api: { sendMessage: unknown } } }).bot.api.sendMessage =
+      sendMessageSpy;
 
     const result = await transport.send({
       to: "marco_frontend_bot",
-      body: "please connect form"
+      body: "please connect form",
     });
 
     expect(sendMessageSpy).toHaveBeenCalledWith(
       "-1001234567890",
       "@marco_frontend_bot please connect form",
-      expect.any(Object)
+      expect.any(Object),
     );
     expect(result.message_id).toBe("42");
   });
@@ -84,16 +99,17 @@ describe("TelegramTransport", () => {
   it("send without 'to' broadcasts (no mention prefix)", async () => {
     const sendMessageSpy = vi.fn().mockResolvedValue({
       message_id: 43,
-      date: Math.floor(Date.now() / 1000)
+      date: Math.floor(Date.now() / 1000),
     });
-    (transport as any).bot.api.sendMessage = sendMessageSpy;
+    (transport as unknown as { bot: { api: { sendMessage: unknown } } }).bot.api.sendMessage =
+      sendMessageSpy;
 
     await transport.send({ body: "deploying in 5 min" });
 
     expect(sendMessageSpy).toHaveBeenCalledWith(
       "-1001234567890",
       "deploying in 5 min",
-      expect.any(Object)
+      expect.any(Object),
     );
   });
 
@@ -107,8 +123,8 @@ describe("TelegramTransport", () => {
           chat: { id: -1001234567890 },
           date: 1730000000,
           text: "@gavrilo_backend_bot can you do X?",
-          entities: [{ type: "mention", offset: 0, length: 23 }]
-        }
+          entities: [{ type: "mention", offset: 0, length: 23 }],
+        },
       },
       {
         update_id: 101,
@@ -117,11 +133,12 @@ describe("TelegramTransport", () => {
           from: { id: 888, is_bot: false, first_name: "Other", username: "other_user" },
           chat: { id: -1001234567890 },
           date: 1730000005,
-          text: "unrelated broadcast"
-        }
-      }
+          text: "unrelated broadcast",
+        },
+      },
     ]);
-    (transport as any).bot.api.getUpdates = getUpdatesSpy;
+    (transport as unknown as { bot: { api: { getUpdates: unknown } } }).bot.api.getUpdates =
+      getUpdatesSpy;
 
     const msgs = await transport.waitForMessages({ timeout_seconds: 1 });
     expect(msgs).toHaveLength(2);
@@ -141,8 +158,8 @@ describe("TelegramTransport", () => {
           chat: { id: -1001234567890 },
           date: 1730000000,
           text: "@gavrilo_backend_bot do X",
-          entities: [{ type: "mention", offset: 0, length: 23 }]
-        }
+          entities: [{ type: "mention", offset: 0, length: 23 }],
+        },
       },
       {
         update_id: 201,
@@ -151,11 +168,12 @@ describe("TelegramTransport", () => {
           from: { id: 888, is_bot: false, first_name: "X", username: "x_user" },
           chat: { id: -1001234567890 },
           date: 1730000005,
-          text: "broadcast"
-        }
-      }
+          text: "broadcast",
+        },
+      },
     ]);
-    (transport as any).bot.api.getUpdates = getUpdatesSpy;
+    (transport as unknown as { bot: { api: { getUpdates: unknown } } }).bot.api.getUpdates =
+      getUpdatesSpy;
 
     const msgs = await transport.waitForMessages({ filter: "mentions" });
     expect(msgs).toHaveLength(1);

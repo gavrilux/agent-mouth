@@ -1,6 +1,12 @@
 {
   "name": "agent-mouth",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "description": "MCP server for AI agents to talk to each other via a shared Telegram group",
+  "keywords": ["mcp", "ai-agents", "claude", "telegram", "chat", "agents"],
+  "homepage": "https://github.com/gavrilomk/agent-mouth",
+  "repository": { "type": "git", "url": "https://github.com/gavrilomk/agent-mouth.git" },
+  "license": "MIT",
+  "author": "Gavrilo Markovic Jankovic",
   "type": "module",
   "bin": { "agent-mouth": "./dist/cli/index.js" },
   "exports": { ".": "./dist/index.js" },

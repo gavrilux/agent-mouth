@@ -11,22 +11,24 @@ function fakeTransport(): Transport {
       handle: "gavrilo_backend_bot",
       display_name: "Gavrilo Backend",
       bot_id: 7,
-      chat_id: "-100"
+      chat_id: "-100",
     }),
-    listContacts: vi.fn().mockResolvedValue([
-      { handle: "marco_frontend_bot", display_name: "Marco Front", is_bot: true }
-    ]),
+    listContacts: vi
+      .fn()
+      .mockResolvedValue([
+        { handle: "marco_frontend_bot", display_name: "Marco Front", is_bot: true },
+      ]),
     send: vi.fn(),
     receive: vi.fn(),
     waitForMessages: vi.fn(),
-    close: vi.fn()
+    close: vi.fn(),
   };
 }
 
 async function callTool(client: Client, name: string, args: object) {
   const r = await client.callTool({ name, arguments: args });
   const text = (r.content as { type: string; text: string }[])[0]!.text;
-  return JSON.parse(text) as { ok: boolean; data?: any; error?: any };
+  return JSON.parse(text) as { ok: boolean; data?: unknown; error?: unknown };
 }
 
 async function connect(t: Transport) {

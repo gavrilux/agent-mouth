@@ -1,11 +1,11 @@
 import { registerTool } from "../registry.js";
-import { whoamiTool, listContactsTool } from "./identity.js";
+import { listContactsTool, whoamiTool } from "./identity.js";
 import {
-  sendMessageTool,
-  readInboxTool,
-  waitForMessagesTool,
   getThreadTool,
-  markReadTool
+  markReadTool,
+  readInboxTool,
+  sendMessageTool,
+  waitForMessagesTool,
 } from "./messaging.js";
 
 registerTool(whoamiTool);

@@ -2,13 +2,13 @@ import { Bot } from "grammy";
 import type {
   Contact,
   Identity,
-  ReceivedMessage,
   ReceiveOptions,
+  ReceivedMessage,
   SendOptions,
   SentMessage,
   Transport,
   TransportConfig,
-  WaitOptions
+  WaitOptions,
 } from "./types.js";
 
 export interface TelegramConfig extends TransportConfig {
@@ -19,9 +19,9 @@ export interface TelegramConfig extends TransportConfig {
 
 export class TelegramTransport implements Transport {
   private bot: Bot | null = null;
-  private chatId: string = "";
-  private handle: string = "";
-  private botUserId: number = 0;
+  private chatId = "";
+  private handle = "";
+  private botUserId = 0;
 
   async init(config: TransportConfig): Promise<void> {
     const c = config as TelegramConfig;
@@ -44,7 +44,7 @@ export class TelegramTransport implements Transport {
       handle: me.username!,
       display_name: me.first_name,
       bot_id: me.id,
-      chat_id: this.chatId
+      chat_id: this.chatId,
     };
   }
 
@@ -56,23 +56,21 @@ export class TelegramTransport implements Transport {
       .map((m) => ({
         handle: m.user.username ?? `user_${m.user.id}`,
         display_name: m.user.first_name ?? null,
-        is_bot: m.user.is_bot
+        is_bot: m.user.is_bot,
       }));
   }
 
   async send(opts: SendOptions): Promise<SentMessage> {
     if (!this.bot) throw new Error("Transport not initialized");
-    const text = opts.to && opts.to !== "broadcast"
-      ? `@${opts.to} ${opts.body}`
-      : opts.body;
+    const text = opts.to && opts.to !== "broadcast" ? `@${opts.to} ${opts.body}` : opts.body;
     const sent = await this.bot.api.sendMessage(this.chatId, text, {
       reply_parameters: opts.reply_to_message_id
         ? { message_id: Number(opts.reply_to_message_id) }
-        : undefined
+        : undefined,
     });
     return {
       message_id: String(sent.message_id),
-      timestamp: new Date(sent.date * 1000)
+      timestamp: new Date(sent.date * 1000),
     };
   }
 
@@ -85,7 +83,7 @@ export class TelegramTransport implements Transport {
   async waitForMessages(opts: WaitOptions): Promise<ReceivedMessage[]> {
     return this.fetchUpdates({
       timeoutSeconds: opts.timeout_seconds ?? 30,
-      filter: opts.filter
+      filter: opts.filter,
     });
   }
 
@@ -98,7 +96,7 @@ export class TelegramTransport implements Transport {
     const updates = await this.bot.api.getUpdates({
       timeout: args.timeoutSeconds,
       allowed_updates: ["message"],
-      limit: args.limit ?? 100
+      limit: args.limit ?? 100,
     });
 
     const myMention = `@${(await this.whoami()).handle}`.toLowerCase();
@@ -123,7 +121,7 @@ export class TelegramTransport implements Transport {
           ? String(msg.reply_to_message.message_id)
           : undefined,
         is_mention: isMention,
-        raw: update
+        raw: update,
       });
     }
 

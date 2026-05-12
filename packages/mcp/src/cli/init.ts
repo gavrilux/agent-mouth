@@ -18,7 +18,7 @@ export async function init(_args: string[]): Promise<void> {
 
   // Verify token by calling getMe
   const probeBot = new Bot(botToken);
-  let me;
+  let me: { username?: string; first_name: string } | undefined;
   try {
     me = await probeBot.api.getMe();
   } catch (err) {
@@ -27,13 +27,23 @@ export async function init(_args: string[]): Promise<void> {
   }
   console.log(`✓ Bot verified: @${me.username} (${me.first_name})`);
 
-  let chatId = await prompt(`Group chat_id (leave empty to auto-detect — then send any message in your group):`);
+  let chatId = await prompt(
+    "Group chat_id (leave empty to auto-detect — then send any message in your group):",
+  );
   if (!chatId) {
     console.log("⏳ Waiting for a message in any group your bot is in (30s timeout)...");
-    const updates = await probeBot.api.getUpdates({ timeout: 30, allowed_updates: ["message"], limit: 5 });
-    const groupUpdate = updates.find((u) => u.message && (u.message.chat.type === "group" || u.message.chat.type === "supergroup"));
+    const updates = await probeBot.api.getUpdates({
+      timeout: 30,
+      allowed_updates: ["message"],
+      limit: 5,
+    });
+    const groupUpdate = updates.find(
+      (u) => u.message && (u.message.chat.type === "group" || u.message.chat.type === "supergroup"),
+    );
     if (!groupUpdate) {
-      console.error("No group message received in 30s. Send a message in the group, then re-run init.");
+      console.error(
+        "No group message received in 30s. Send a message in the group, then re-run init.",
+      );
       process.exit(1);
     }
     chatId = String(groupUpdate.message!.chat.id);
@@ -42,7 +52,7 @@ export async function init(_args: string[]): Promise<void> {
   }
 
   const handle = me.username!;
-  const displayName = await prompt("Display name (Enter for default):") || me.first_name;
+  const displayName = (await prompt("Display name (Enter for default):")) || me.first_name;
 
   await saveConfig(defaultConfigPath(), {
     transport: "telegram",
@@ -50,9 +60,9 @@ export async function init(_args: string[]): Promise<void> {
       bot_token: botToken,
       chat_id: chatId,
       handle,
-      display_name: displayName
+      display_name: displayName,
     },
-    last_seen_update_id: 0
+    last_seen_update_id: 0,
   });
 
   console.log(`\n✓ Configured as @${handle} in group ${chatId}`);
@@ -60,5 +70,5 @@ export async function init(_args: string[]): Promise<void> {
   console.log("\nAdd this to ~/.claude/settings.json under mcpServers:");
   console.log(`   { "agent-mouth": { "command": "npx", "args": ["agent-mouth", "serve"] } }`);
   console.log(`\n🎉 Share this with teammates: chat_id = ${chatId}`);
-  console.log("   They run: npx agent-mouth join --chat-id " + chatId);
+  console.log(`   They run: npx agent-mouth join --chat-id ${chatId}`);
 }

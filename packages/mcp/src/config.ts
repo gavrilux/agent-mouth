@@ -1,6 +1,6 @@
-import { mkdir, readFile, writeFile, chmod } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 
 export interface TelegramConfigBlock {
   bot_token: string;
@@ -19,7 +19,9 @@ export function defaultConfigPath(): string {
   return join(homedir(), ".agent-mouth", "config.json");
 }
 
-export async function loadConfig(path: string = defaultConfigPath()): Promise<AgentMouthConfig | null> {
+export async function loadConfig(
+  path: string = defaultConfigPath(),
+): Promise<AgentMouthConfig | null> {
   try {
     const raw = await readFile(path, "utf8");
     return JSON.parse(raw) as AgentMouthConfig;

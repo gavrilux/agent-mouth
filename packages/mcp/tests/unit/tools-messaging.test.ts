@@ -13,14 +13,14 @@ function fakeTransport(overrides: Partial<Transport> = {}): Transport {
     receive: vi.fn().mockResolvedValue([]),
     waitForMessages: vi.fn().mockResolvedValue([]),
     close: vi.fn(),
-    ...overrides
+    ...overrides,
   };
 }
 
 async function callTool(client: Client, name: string, args: object) {
   const r = await client.callTool({ name, arguments: args });
   const text = (r.content as { type: string; text: string }[])[0]!.text;
-  return JSON.parse(text) as { ok: boolean; data?: any; error?: any };
+  return JSON.parse(text) as { ok: boolean; data?: unknown; error?: unknown };
 }
 
 async function connect(t: Transport) {
@@ -38,13 +38,13 @@ describe("messaging tools", () => {
     const client = await connect(t);
     const r = await callTool(client, "send_message", {
       to: "marco_frontend_bot",
-      body: "hola"
+      body: "hola",
     });
     expect(r.ok).toBe(true);
     expect(t.send).toHaveBeenCalledWith({
       to: "marco_frontend_bot",
       body: "hola",
-      reply_to_message_id: undefined
+      reply_to_message_id: undefined,
     });
   });
 
@@ -56,20 +56,26 @@ describe("messaging tools", () => {
 
   it("read_inbox calls transport.receive with the given filter", async () => {
     const t = fakeTransport({
-      receive: vi.fn().mockResolvedValue([
-        { id: "1:1", from_handle: "marco", body: "hi", timestamp: new Date(), is_mention: true }
-      ])
+      receive: vi
+        .fn()
+        .mockResolvedValue([
+          { id: "1:1", from_handle: "marco", body: "hi", timestamp: new Date(), is_mention: true },
+        ]),
     });
     const client = await connect(t);
     const r = await callTool(client, "read_inbox", { filter: "mentions", limit: 50 });
     expect(r.ok).toBe(true);
-    expect(t.receive).toHaveBeenCalledWith({ filter: "mentions", limit: 50, since_message_id: undefined });
+    expect(t.receive).toHaveBeenCalledWith({
+      filter: "mentions",
+      limit: 50,
+      since_message_id: undefined,
+    });
     expect(r.data).toHaveLength(1);
   });
 
   it("wait_for_messages forwards timeout and filter", async () => {
     const t = fakeTransport({
-      waitForMessages: vi.fn().mockResolvedValue([])
+      waitForMessages: vi.fn().mockResolvedValue([]),
     });
     const client = await connect(t);
     await callTool(client, "wait_for_messages", { timeout_seconds: 10, filter: "mentions" });
@@ -79,9 +85,22 @@ describe("messaging tools", () => {
   it("get_thread returns the reply chain for a message", async () => {
     const t = fakeTransport({
       receive: vi.fn().mockResolvedValue([
-        { id: "1:1", from_handle: "marco", body: "first", timestamp: new Date(), is_mention: false },
-        { id: "2:2", from_handle: "me", body: "reply", timestamp: new Date(), reply_to_message_id: "1", is_mention: false }
-      ])
+        {
+          id: "1:1",
+          from_handle: "marco",
+          body: "first",
+          timestamp: new Date(),
+          is_mention: false,
+        },
+        {
+          id: "2:2",
+          from_handle: "me",
+          body: "reply",
+          timestamp: new Date(),
+          reply_to_message_id: "1",
+          is_mention: false,
+        },
+      ]),
     });
     const client = await connect(t);
     const r = await callTool(client, "get_thread", { reply_to_message_id: "1", limit: 50 });
@@ -100,7 +119,7 @@ describe("messaging tools", () => {
     await saveConfig(configPath, {
       transport: "telegram",
       telegram: { bot_token: "x", chat_id: "-100", handle: "me" },
-      last_seen_update_id: 0
+      last_seen_update_id: 0,
     });
 
     const server = buildServer({ transport: fakeTransport(), configPath });

@@ -27,7 +27,7 @@ export async function join(args: string[]): Promise<void> {
   }
 
   const probeBot = new Bot(botToken);
-  let me;
+  let me: { username?: string; first_name: string } | undefined;
   try {
     me = await probeBot.api.getMe();
   } catch (err) {
@@ -39,17 +39,19 @@ export async function join(args: string[]): Promise<void> {
   try {
     await probeBot.api.getChat(chatId);
   } catch (err) {
-    console.error(`Cannot access group ${chatId}. Make sure your bot was added: ${(err as Error).message}`);
+    console.error(
+      `Cannot access group ${chatId}. Make sure your bot was added: ${(err as Error).message}`,
+    );
     process.exit(1);
   }
 
   const handle = me.username!;
-  const displayName = await prompt("Display name (Enter for default):") || me.first_name;
+  const displayName = (await prompt("Display name (Enter for default):")) || me.first_name;
 
   await saveConfig(defaultConfigPath(), {
     transport: "telegram",
     telegram: { bot_token: botToken, chat_id: chatId, handle, display_name: displayName },
-    last_seen_update_id: 0
+    last_seen_update_id: 0,
   });
 
   console.log(`\n✓ Joined group ${chatId} as @${handle}`);

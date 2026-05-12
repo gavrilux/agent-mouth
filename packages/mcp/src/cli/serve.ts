@@ -1,8 +1,8 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { loadConfig, defaultConfigPath } from "../config.js";
-import { TelegramTransport, type TelegramConfig } from "../transports/telegram.js";
-import { buildServer } from "../server.js";
+import { defaultConfigPath, loadConfig } from "../config.js";
 import { logger } from "../logger.js";
+import { buildServer } from "../server.js";
+import { type TelegramConfig, TelegramTransport } from "../transports/telegram.js";
 
 export async function serve(): Promise<void> {
   const configPath = defaultConfigPath();

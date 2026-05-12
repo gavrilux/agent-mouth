@@ -1,11 +1,8 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema
-} from "@modelcontextprotocol/sdk/types.js";
-import type { Transport } from "./transports/types.js";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { logger } from "./logger.js";
 import { tools } from "./registry.js";
+import type { Transport } from "./transports/types.js";
 import "./tools/_register.js";
 
 export type { ToolContext, ToolDef } from "./registry.js";
@@ -19,11 +16,11 @@ export interface ServerOptions {
 export function buildServer(opts: ServerOptions): Server {
   const server = new Server(
     { name: "agent-mouth", version: "0.0.1" },
-    { capabilities: { tools: {} } }
+    { capabilities: { tools: {} } },
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema }))
+    tools: tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })),
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -32,10 +29,10 @@ export function buildServer(opts: ServerOptions): Server {
     try {
       const result = await tool.handler(request.params.arguments ?? {}, {
         transport: opts.transport,
-        configPath: opts.configPath
+        configPath: opts.configPath,
       });
       return {
-        content: [{ type: "text", text: JSON.stringify({ ok: true, data: result }) }]
+        content: [{ type: "text", text: JSON.stringify({ ok: true, data: result }) }],
       };
     } catch (err) {
       const e = err as Error & { hint?: string };
@@ -46,11 +43,11 @@ export function buildServer(opts: ServerOptions): Server {
             type: "text",
             text: JSON.stringify({
               ok: false,
-              error: { code: e.name, message: e.message, ...(e.hint ? { hint: e.hint } : {}) }
-            })
-          }
+              error: { code: e.name, message: e.message, ...(e.hint ? { hint: e.hint } : {}) },
+            }),
+          },
         ],
-        isError: true
+        isError: true,
       };
     }
   });

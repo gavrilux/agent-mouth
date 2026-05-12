@@ -11,13 +11,13 @@ function fakeTransport(): Transport {
       handle: "gavrilo_backend_bot",
       display_name: "Gavrilo Backend",
       bot_id: 1,
-      chat_id: "-100"
+      chat_id: "-100",
     }),
     listContacts: vi.fn().mockResolvedValue([]),
     send: vi.fn(),
     receive: vi.fn(),
     waitForMessages: vi.fn(),
-    close: vi.fn()
+    close: vi.fn(),
   };
 }
 

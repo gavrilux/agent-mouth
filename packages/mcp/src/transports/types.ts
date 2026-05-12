@@ -1,8 +1,8 @@
 export interface Identity {
-  handle: string;            // bot username without @
+  handle: string; // bot username without @
   display_name: string;
-  bot_id?: number;           // Telegram-specific, optional in interface
-  chat_id?: string;          // current group context
+  bot_id?: number; // Telegram-specific, optional in interface
+  chat_id?: string; // current group context
 }
 
 export interface Contact {
@@ -13,12 +13,12 @@ export interface Contact {
 }
 
 export interface ReceivedMessage {
-  id: string;                    // serialized "<update_id>:<message_id>"
+  id: string; // serialized "<update_id>:<message_id>"
   from_handle: string;
   body: string;
   timestamp: Date;
   reply_to_message_id?: string;
-  is_mention: boolean;           // whether this message mentions me
+  is_mention: boolean; // whether this message mentions me
   raw?: unknown;
 }
 
@@ -28,7 +28,7 @@ export interface SentMessage {
 }
 
 export interface SendOptions {
-  to?: string;                   // handle, or "broadcast" / undefined
+  to?: string; // handle, or "broadcast" / undefined
   body: string;
   reply_to_message_id?: string;
 }

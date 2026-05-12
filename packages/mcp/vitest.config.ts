@@ -7,8 +7,8 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html", "lcov"],
       include: ["src/**/*.ts"],
-      exclude: ["src/cli/**"]
+      exclude: ["src/cli/**"],
     },
-    testTimeout: 30000
-  }
+    testTimeout: 30000,
+  },
 });
