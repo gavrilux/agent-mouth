@@ -59,4 +59,106 @@ describe("TelegramTransport", () => {
     expect(handles).toContain("marco_frontend_bot");
     expect(handles).not.toContain("gavrilo_backend_bot"); // self excluded
   });
+
+  it("send formats message with @mention when 'to' is a handle", async () => {
+    // Extend the Bot mock with sendMessage
+    const sendMessageSpy = vi.fn().mockResolvedValue({
+      message_id: 42,
+      date: Math.floor(Date.now() / 1000)
+    });
+    (transport as any).bot.api.sendMessage = sendMessageSpy;
+
+    const result = await transport.send({
+      to: "marco_frontend_bot",
+      body: "please connect form"
+    });
+
+    expect(sendMessageSpy).toHaveBeenCalledWith(
+      "-1001234567890",
+      "@marco_frontend_bot please connect form",
+      expect.any(Object)
+    );
+    expect(result.message_id).toBe("42");
+  });
+
+  it("send without 'to' broadcasts (no mention prefix)", async () => {
+    const sendMessageSpy = vi.fn().mockResolvedValue({
+      message_id: 43,
+      date: Math.floor(Date.now() / 1000)
+    });
+    (transport as any).bot.api.sendMessage = sendMessageSpy;
+
+    await transport.send({ body: "deploying in 5 min" });
+
+    expect(sendMessageSpy).toHaveBeenCalledWith(
+      "-1001234567890",
+      "deploying in 5 min",
+      expect.any(Object)
+    );
+  });
+
+  it("waitForMessages parses Telegram updates into ReceivedMessages with mention detection", async () => {
+    const getUpdatesSpy = vi.fn().mockResolvedValue([
+      {
+        update_id: 100,
+        message: {
+          message_id: 50,
+          from: { id: 999, is_bot: false, first_name: "Marco", username: "marco_user" },
+          chat: { id: -1001234567890 },
+          date: 1730000000,
+          text: "@gavrilo_backend_bot can you do X?",
+          entities: [{ type: "mention", offset: 0, length: 23 }]
+        }
+      },
+      {
+        update_id: 101,
+        message: {
+          message_id: 51,
+          from: { id: 888, is_bot: false, first_name: "Other", username: "other_user" },
+          chat: { id: -1001234567890 },
+          date: 1730000005,
+          text: "unrelated broadcast"
+        }
+      }
+    ]);
+    (transport as any).bot.api.getUpdates = getUpdatesSpy;
+
+    const msgs = await transport.waitForMessages({ timeout_seconds: 1 });
+    expect(msgs).toHaveLength(2);
+    expect(msgs[0].body).toBe("@gavrilo_backend_bot can you do X?");
+    expect(msgs[0].from_handle).toBe("marco_user");
+    expect(msgs[0].is_mention).toBe(true);
+    expect(msgs[1].is_mention).toBe(false);
+  });
+
+  it("waitForMessages with filter='mentions' returns only messages that mention me", async () => {
+    const getUpdatesSpy = vi.fn().mockResolvedValue([
+      {
+        update_id: 200,
+        message: {
+          message_id: 60,
+          from: { id: 999, is_bot: false, first_name: "Marco", username: "marco_user" },
+          chat: { id: -1001234567890 },
+          date: 1730000000,
+          text: "@gavrilo_backend_bot do X",
+          entities: [{ type: "mention", offset: 0, length: 23 }]
+        }
+      },
+      {
+        update_id: 201,
+        message: {
+          message_id: 61,
+          from: { id: 888, is_bot: false, first_name: "X", username: "x_user" },
+          chat: { id: -1001234567890 },
+          date: 1730000005,
+          text: "broadcast"
+        }
+      }
+    ]);
+    (transport as any).bot.api.getUpdates = getUpdatesSpy;
+
+    const msgs = await transport.waitForMessages({ filter: "mentions" });
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].body).toContain("@gavrilo_backend_bot");
+  });
 });
