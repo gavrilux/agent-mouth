@@ -73,6 +73,24 @@ describe("messaging tools", () => {
     expect(r.data).toHaveLength(1);
   });
 
+  it("read_inbox forwards since_message_id to transport.receive", async () => {
+    const t = fakeTransport({ receive: vi.fn().mockResolvedValue([]) });
+    const client = await connect(t);
+
+    const r = await callTool(client, "read_inbox", {
+      filter: "all",
+      limit: 10,
+      since_message_id: "100:42",
+    });
+
+    expect(r.ok).toBe(true);
+    expect(t.receive).toHaveBeenCalledWith({
+      filter: "all",
+      limit: 10,
+      since_message_id: "100:42",
+    });
+  });
+
   it("wait_for_messages forwards timeout and filter", async () => {
     const t = fakeTransport({
       waitForMessages: vi.fn().mockResolvedValue([]),

@@ -216,4 +216,36 @@ describe("TelegramTransport", () => {
     expect(msgs).toHaveLength(1);
     expect(msgs[0].body).toContain("@gavrilo_backend_bot");
   });
+
+  it("receive filters messages older than since_message_id", async () => {
+    const getUpdatesSpy = vi.fn().mockResolvedValue([
+      {
+        update_id: 200,
+        message: {
+          message_id: 60,
+          from: { id: 999, is_bot: false, first_name: "Marco", username: "marco_user" },
+          chat: { id: -1001234567890 },
+          date: 1730000000,
+          text: "old message",
+        },
+      },
+      {
+        update_id: 201,
+        message: {
+          message_id: 61,
+          from: { id: 888, is_bot: false, first_name: "X", username: "x_user" },
+          chat: { id: -1001234567890 },
+          date: 1730000005,
+          text: "new message",
+        },
+      },
+    ]);
+    (transport as unknown as { bot: { api: { getUpdates: unknown } } }).bot.api.getUpdates =
+      getUpdatesSpy;
+
+    const msgs = await transport.receive({ filter: "all", since_message_id: "200:60" });
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].id).toBe("201:61");
+    expect(msgs[0].body).toBe("new message");
+  });
 });
