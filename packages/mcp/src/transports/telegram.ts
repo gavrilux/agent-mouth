@@ -80,7 +80,12 @@ export class TelegramTransport implements Transport {
   async receive(opts: ReceiveOptions): Promise<ReceivedMessage[]> {
     // For Telegram, receive() and waitForMessages() share the same getUpdates source.
     // receive() uses timeout=0 (non-blocking poll), waitForMessages() uses long-poll.
-    return this.fetchUpdates({ timeoutSeconds: 0, filter: opts.filter, limit: opts.limit });
+    return this.fetchUpdates({
+      timeoutSeconds: 0,
+      filter: opts.filter,
+      limit: opts.limit,
+      sinceMessageId: opts.since_message_id,
+    });
   }
 
   async waitForMessages(opts: WaitOptions): Promise<ReceivedMessage[]> {
@@ -94,8 +99,12 @@ export class TelegramTransport implements Transport {
     timeoutSeconds: number;
     filter?: "mentions" | "replies" | "all";
     limit?: number;
+    sinceMessageId?: string;
   }): Promise<ReceivedMessage[]> {
     if (!this.bot) throw new Error("Transport not initialized");
+    const sinceUpdateId = args.sinceMessageId
+      ? Number.parseInt(args.sinceMessageId.split(":")[0] ?? "", 10)
+      : undefined;
     const updates = await this.bot.api.getUpdates({
       offset: this.lastSeenUpdateId + 1,
       timeout: args.timeoutSeconds,
@@ -112,6 +121,7 @@ export class TelegramTransport implements Transport {
     const mapped: ReceivedMessage[] = [];
 
     for (const update of updates) {
+      if (sinceUpdateId !== undefined && update.update_id <= sinceUpdateId) continue;
       const msg = update.message;
       if (!msg || !msg.text) continue;
       if (String(msg.chat.id) !== this.chatId) continue;
