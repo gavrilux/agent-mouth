@@ -21,7 +21,6 @@ export interface TelegramConfig extends TransportConfig {
 export class TelegramTransport implements Transport {
   private bot: Bot | null = null;
   private chatId = "";
-  private handle = "";
   private botUserId = 0;
   private lastSeenUpdateId = 0;
 
@@ -32,7 +31,6 @@ export class TelegramTransport implements Transport {
     }
     this.bot = new Bot(c.bot_token);
     this.chatId = c.chat_id;
-    this.handle = c.handle;
     this.lastSeenUpdateId = c.last_seen_update_id ?? 0;
 
     // Resolve bot identity for self-filtering
