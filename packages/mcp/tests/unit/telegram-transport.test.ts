@@ -66,6 +66,23 @@ describe("TelegramTransport", () => {
     expect(me.chat_id).toBe("-1001234567890");
   });
 
+  it("whoami prefers the configured display_name", async () => {
+    await transport.close();
+    transport = new TelegramTransport();
+    await transport.init({
+      bot_token: "7234567890:AAH-fake-token",
+      chat_id: "-1001234567890",
+      handle: "gavrilo-backend",
+      display_name: "Docs Agent",
+    });
+
+    const me = await transport.whoami();
+    expect(me.handle).toBe("gavrilo_backend_bot");
+    expect(me.display_name).toBe("Docs Agent");
+    expect(me.bot_id).toBe(7234567890);
+    expect(me.chat_id).toBe("-1001234567890");
+  });
+
   it("listContacts returns other group members (excluding self)", async () => {
     const contacts = await transport.listContacts();
     const handles = contacts.map((c) => c.handle);
