@@ -1,4 +1,12 @@
-import { Bot } from "grammy";
+import { Bot, GrammyError, HttpError } from "grammy";
+import {
+  authError,
+  networkError,
+  notFoundError,
+  notInGroupError,
+  privacyModeError,
+  rateLimitedError,
+} from "../errors.js";
 import type {
   Contact,
   Identity,
@@ -36,13 +44,13 @@ export class TelegramTransport implements Transport {
     this.lastSeenUpdateId = c.last_seen_update_id ?? 0;
 
     // Resolve bot identity for self-filtering
-    const me = await this.bot.api.getMe();
+    const me = await this.callTelegramApi(() => this.bot!.api.getMe());
     this.botUserId = me.id;
   }
 
   async whoami(): Promise<Identity> {
     if (!this.bot) throw new Error("Transport not initialized");
-    const me = await this.bot.api.getMe();
+    const me = await this.callTelegramApi(() => this.bot!.api.getMe());
     return {
       handle: me.username!,
       display_name: me.first_name,
@@ -53,7 +61,9 @@ export class TelegramTransport implements Transport {
 
   async listContacts(): Promise<Contact[]> {
     if (!this.bot) throw new Error("Transport not initialized");
-    const admins = await this.bot.api.getChatAdministrators(this.chatId);
+    const admins = await this.callTelegramApi(() =>
+      this.bot!.api.getChatAdministrators(this.chatId),
+    );
     return admins
       .filter((m) => m.user.id !== this.botUserId)
       .map((m) => ({
@@ -66,11 +76,13 @@ export class TelegramTransport implements Transport {
   async send(opts: SendOptions): Promise<SentMessage> {
     if (!this.bot) throw new Error("Transport not initialized");
     const text = opts.to && opts.to !== "broadcast" ? `@${opts.to} ${opts.body}` : opts.body;
-    const sent = await this.bot.api.sendMessage(this.chatId, text, {
-      reply_parameters: opts.reply_to_message_id
-        ? { message_id: Number(opts.reply_to_message_id) }
-        : undefined,
-    });
+    const sent = await this.callTelegramApi(() =>
+      this.bot!.api.sendMessage(this.chatId, text, {
+        reply_parameters: opts.reply_to_message_id
+          ? { message_id: Number(opts.reply_to_message_id) }
+          : undefined,
+      }),
+    );
     return {
       message_id: String(sent.message_id),
       timestamp: new Date(sent.date * 1000),
@@ -96,12 +108,14 @@ export class TelegramTransport implements Transport {
     limit?: number;
   }): Promise<ReceivedMessage[]> {
     if (!this.bot) throw new Error("Transport not initialized");
-    const updates = await this.bot.api.getUpdates({
-      offset: this.lastSeenUpdateId + 1,
-      timeout: args.timeoutSeconds,
-      allowed_updates: ["message"],
-      limit: args.limit ?? 100,
-    });
+    const updates = await this.callTelegramApi(() =>
+      this.bot!.api.getUpdates({
+        offset: this.lastSeenUpdateId + 1,
+        timeout: args.timeoutSeconds,
+        allowed_updates: ["message"],
+        limit: args.limit ?? 100,
+      }),
+    );
 
     // Advance internal offset to prevent re-receiving these updates
     if (updates.length > 0) {
@@ -144,4 +158,58 @@ export class TelegramTransport implements Transport {
   async close(): Promise<void> {
     this.bot = null;
   }
+
+  private async callTelegramApi<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (err) {
+      throw mapTelegramError(err);
+    }
+  }
+}
+
+function mapTelegramError(err: unknown): Error {
+  if (err instanceof GrammyError) {
+    const description = err.description.toLowerCase();
+    if (err.error_code === 401) {
+      return authError(
+        "Telegram rejected the bot token.",
+        "Regenerate the bot token with @BotFather and update the transport config.",
+      );
+    }
+    if (err.error_code === 429) {
+      return rateLimitedError(err.parameters?.retry_after ?? 1);
+    }
+    if (err.error_code === 400 && description.includes("chat not found")) {
+      return notFoundError(
+        "Telegram chat was not found.",
+        "Check chat_id and make sure the bot can see the group.",
+      );
+    }
+    if (err.error_code === 403) {
+      if (description.includes("privacy")) {
+        return privacyModeError(
+          "Telegram privacy mode is preventing the bot from reading messages.",
+          "Disable privacy mode with @BotFather or mention/reply to the bot explicitly.",
+        );
+      }
+      if (
+        description.includes("kicked") ||
+        description.includes("not enough rights") ||
+        description.includes("not a member") ||
+        description.includes("bot was blocked")
+      ) {
+        return notInGroupError(
+          "Telegram bot is not allowed to access this chat.",
+          "Add the bot back to the group and grant the permissions required by agent-mouth.",
+        );
+      }
+    }
+  }
+
+  if (err instanceof HttpError) {
+    return networkError(err.message, "Check network connectivity and Telegram API availability.");
+  }
+
+  return err instanceof Error ? err : new Error(String(err));
 }
