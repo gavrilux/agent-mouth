@@ -1,9 +1,30 @@
+import { GrammyError, HttpError } from "grammy";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TelegramTransport } from "../../src/transports/telegram.js";
 
 // Mock the grammy Bot
 vi.mock("grammy", () => {
+  class GrammyError extends Error {
+    constructor(
+      public error_code: number,
+      public description: string,
+      public parameters?: { retry_after?: number },
+    ) {
+      super(description);
+      this.name = "GrammyError";
+    }
+  }
+
+  class HttpError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "HttpError";
+    }
+  }
+
   return {
+    GrammyError,
+    HttpError,
     Bot: class MockBot {
       api = {
         getMe: vi.fn().mockResolvedValue({
@@ -94,6 +115,66 @@ describe("TelegramTransport", () => {
       expect.any(Object),
     );
     expect(result.message_id).toBe("42");
+  });
+
+  it.each([
+    [
+      new (GrammyError as unknown as new (code: number, description: string) => Error)(
+        401,
+        "Unauthorized",
+      ),
+      "AUTH_ERROR",
+      "Regenerate the bot token",
+    ],
+    [
+      new (GrammyError as unknown as new (code: number, description: string) => Error)(
+        403,
+        "Forbidden: bot was kicked from the supergroup chat",
+      ),
+      "NOT_IN_GROUP",
+      "Add the bot back",
+    ],
+    [
+      new (GrammyError as unknown as new (code: number, description: string) => Error)(
+        403,
+        "Forbidden: bot privacy mode is enabled",
+      ),
+      "PRIVACY_MODE_ON",
+      "Disable privacy mode",
+    ],
+    [
+      new (
+        GrammyError as unknown as new (
+          code: number,
+          description: string,
+          parameters?: { retry_after?: number },
+        ) => Error
+      )(429, "Too Many Requests", { retry_after: 7 }),
+      "RATE_LIMITED",
+      "Wait 7s",
+    ],
+    [
+      new (HttpError as unknown as new (message: string) => Error)("fetch failed"),
+      "NETWORK_ERROR",
+      "network",
+    ],
+    [
+      new (GrammyError as unknown as new (code: number, description: string) => Error)(
+        400,
+        "Bad Request: chat not found",
+      ),
+      "NOT_FOUND",
+      "chat_id",
+    ],
+  ])("maps Telegram API failures to %s", async (err, code, hint) => {
+    const sendMessageSpy = vi.fn().mockRejectedValue(err);
+    (transport as unknown as { bot: { api: { sendMessage: unknown } } }).bot.api.sendMessage =
+      sendMessageSpy;
+
+    await expect(transport.send({ body: "hello" })).rejects.toMatchObject({
+      name: code,
+      hint: expect.stringContaining(hint),
+    });
   });
 
   it("send without 'to' broadcasts (no mention prefix)", async () => {
