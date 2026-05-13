@@ -66,6 +66,36 @@ describe("TelegramTransport", () => {
     expect(me.chat_id).toBe("-1001234567890");
   });
 
+  it("caches bot identity after init for whoami and mention filtering", async () => {
+    const botApi = (transport as unknown as { bot: { api: { getMe: ReturnType<typeof vi.fn> } } })
+      .bot.api;
+    expect(botApi.getMe).toHaveBeenCalledTimes(1);
+
+    await transport.whoami();
+    await transport.whoami();
+    expect(botApi.getMe).toHaveBeenCalledTimes(1);
+
+    const getUpdatesSpy = vi.fn().mockResolvedValue([
+      {
+        update_id: 300,
+        message: {
+          message_id: 80,
+          from: { id: 999, is_bot: false, first_name: "Marco", username: "marco_user" },
+          chat: { id: -1001234567890 },
+          date: 1730000000,
+          text: "@gavrilo_backend_bot cached mention detection",
+        },
+      },
+    ]);
+    (transport as unknown as { bot: { api: { getUpdates: unknown } } }).bot.api.getUpdates =
+      getUpdatesSpy;
+
+    const msgs = await transport.waitForMessages({ filter: "mentions" });
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].is_mention).toBe(true);
+    expect(botApi.getMe).toHaveBeenCalledTimes(1);
+  });
+
   it("listContacts returns other group members (excluding self)", async () => {
     const contacts = await transport.listContacts();
     const handles = contacts.map((c) => c.handle);
