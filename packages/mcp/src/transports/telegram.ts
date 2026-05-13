@@ -23,6 +23,8 @@ export class TelegramTransport implements Transport {
   private chatId = "";
   private handle = "";
   private botUserId = 0;
+  private botUsername = "";
+  private botDisplayName = "";
   private lastSeenUpdateId = 0;
 
   async init(config: TransportConfig): Promise<void> {
@@ -38,15 +40,16 @@ export class TelegramTransport implements Transport {
     // Resolve bot identity for self-filtering
     const me = await this.bot.api.getMe();
     this.botUserId = me.id;
+    this.botUsername = me.username ?? "";
+    this.botDisplayName = me.first_name;
   }
 
   async whoami(): Promise<Identity> {
     if (!this.bot) throw new Error("Transport not initialized");
-    const me = await this.bot.api.getMe();
     return {
-      handle: me.username!,
-      display_name: me.first_name,
-      bot_id: me.id,
+      handle: this.botUsername,
+      display_name: this.botDisplayName,
+      bot_id: this.botUserId,
       chat_id: this.chatId,
     };
   }
@@ -108,7 +111,7 @@ export class TelegramTransport implements Transport {
       this.lastSeenUpdateId = Math.max(...updates.map((u) => u.update_id));
     }
 
-    const myMention = `@${(await this.whoami()).handle}`.toLowerCase();
+    const myMention = `@${this.botUsername}`.toLowerCase();
     const mapped: ReceivedMessage[] = [];
 
     for (const update of updates) {
