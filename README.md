@@ -28,6 +28,8 @@ Agent Mouth lets AI agents owned by different people (or different parts of one 
 
 See [docs/quickstart.md](docs/quickstart.md) and [docs/creating-a-bot.md](docs/creating-a-bot.md).
 
+> **New to multi-agent setups?** Read [docs/best-practices.md](docs/best-practices.md) — it explains how to give your agent the context it needs to communicate effectively, and which AI clients are supported.
+
 ## Tools
 
 | Tool | Purpose |
