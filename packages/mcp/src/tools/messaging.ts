@@ -117,18 +117,26 @@ export const markReadTool: ToolDef = {
     properties: { up_to_message_id: { type: "string" } },
     additionalProperties: false,
   },
-  handler: async (input, { configPath }) => {
+  handler: async (input, { configPath, offsetStore, handle }) => {
     const parsed = z.object({ up_to_message_id: z.string() }).parse(input);
-    if (!configPath) {
-      throw new Error("mark_read requires a config file path in server options");
-    }
-    const config = await loadConfig(configPath);
-    if (!config) throw new Error("Config not found");
-
     // Message id is "<update_id>:<msg_id>" — extract update_id
     const updateId = Number(parsed.up_to_message_id.split(":")[0] ?? "0");
-    config.last_seen_update_id = Math.max(config.last_seen_update_id, updateId);
-    await saveConfig(configPath, config);
-    return { ok: true, last_seen_update_id: config.last_seen_update_id };
+
+    if (offsetStore && handle) {
+      const current = await offsetStore.getOffset(handle);
+      const next = Math.max(current, updateId);
+      await offsetStore.saveOffset(handle, next);
+      return { ok: true, last_seen_update_id: next };
+    }
+
+    if (configPath) {
+      const config = await loadConfig(configPath);
+      if (!config) throw new Error("Config not found");
+      config.last_seen_update_id = Math.max(config.last_seen_update_id, updateId);
+      await saveConfig(configPath, config);
+      return { ok: true, last_seen_update_id: config.last_seen_update_id };
+    }
+
+    throw new Error("mark_read requires either offsetStore+handle or configPath");
   },
 };

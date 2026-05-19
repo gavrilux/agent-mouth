@@ -36,3 +36,20 @@ export async function saveConfig(path: string, config: AgentMouthConfig): Promis
   await writeFile(path, JSON.stringify(config, null, 2), "utf8");
   await chmod(path, 0o600);
 }
+
+export function loadConfigFromEnv(): AgentMouthConfig | null {
+  const bot_token = process.env.AGENT_MOUTH_BOT_TOKEN;
+  const chat_id = process.env.AGENT_MOUTH_CHAT_ID;
+  const handle = process.env.AGENT_MOUTH_HANDLE;
+  if (!bot_token || !chat_id || !handle) return null;
+  return {
+    transport: "telegram",
+    telegram: {
+      bot_token,
+      chat_id,
+      handle,
+      display_name: process.env.AGENT_MOUTH_DISPLAY_NAME,
+    },
+    last_seen_update_id: 0,
+  };
+}

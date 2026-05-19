@@ -1,6 +1,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { logger } from "./logger.js";
+import type { OffsetStore } from "./persistence/supabase.js";
 import { tools } from "./registry.js";
 import type { Transport } from "./transports/types.js";
 import "./tools/_register.js";
@@ -11,6 +12,8 @@ export { registerTool } from "./registry.js";
 export interface ServerOptions {
   transport: Transport;
   configPath?: string;
+  offsetStore?: OffsetStore;
+  handle?: string;
 }
 
 export function buildServer(opts: ServerOptions): Server {
@@ -31,6 +34,8 @@ export function buildServer(opts: ServerOptions): Server {
       const result = await tool.handler(request.params.arguments ?? {}, {
         transport: opts.transport,
         configPath: opts.configPath,
+        offsetStore: opts.offsetStore,
+        handle: opts.handle,
       });
       return {
         content: [{ type: "text", text: JSON.stringify({ ok: true, data: result }) }],

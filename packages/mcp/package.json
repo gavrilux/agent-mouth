@@ -19,8 +19,10 @@
     "prepublishOnly": "cp ../../README.md ./README.md && cp ../../LICENSE ./LICENSE"
   },
   "dependencies": {
+    "@hono/node-server": "^1.13.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "grammy": "^1.30.0",
+    "hono": "^4.0.0",
     "pino": "^9.4.0",
     "zod": "^3.23.8"
   },

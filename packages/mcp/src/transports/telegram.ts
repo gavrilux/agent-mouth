@@ -1,4 +1,5 @@
 import { Bot } from "grammy";
+import type { OffsetStore } from "../persistence/supabase.js";
 import type {
   Contact,
   Identity,
@@ -16,6 +17,7 @@ export interface TelegramConfig extends TransportConfig {
   chat_id: string;
   handle: string;
   last_seen_update_id?: number;
+  offsetStore?: OffsetStore;
 }
 
 export class TelegramTransport implements Transport {
@@ -24,6 +26,7 @@ export class TelegramTransport implements Transport {
   private handle = "";
   private botUserId = 0;
   private lastSeenUpdateId = 0;
+  private offsetStore?: OffsetStore;
 
   async init(config: TransportConfig): Promise<void> {
     const c = config as TelegramConfig;
@@ -33,7 +36,13 @@ export class TelegramTransport implements Transport {
     this.bot = new Bot(c.bot_token);
     this.chatId = c.chat_id;
     this.handle = c.handle;
-    this.lastSeenUpdateId = c.last_seen_update_id ?? 0;
+    this.offsetStore = c.offsetStore;
+
+    if (c.offsetStore) {
+      this.lastSeenUpdateId = await c.offsetStore.getOffset(c.handle);
+    } else {
+      this.lastSeenUpdateId = c.last_seen_update_id ?? 0;
+    }
 
     // Resolve bot identity for self-filtering
     const me = await this.bot.api.getMe();
@@ -106,6 +115,7 @@ export class TelegramTransport implements Transport {
     // Advance internal offset to prevent re-receiving these updates
     if (updates.length > 0) {
       this.lastSeenUpdateId = Math.max(...updates.map((u) => u.update_id));
+      await this.offsetStore?.saveOffset(this.handle, this.lastSeenUpdateId);
     }
 
     const myMention = `@${(await this.whoami()).handle}`.toLowerCase();
