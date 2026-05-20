@@ -1,0 +1,24 @@
+{
+  "name": "agent-mouth",
+  "version": "0.2.0",
+  "description": "MCP server for AI agents to talk to each other via multi-channel transports",
+  "keywords": ["mcp", "ai-agents", "claude", "telegram", "chat", "agents"],
+  "homepage": "https://github.com/gavrilux/agent-mouth",
+  "repository": { "type": "git", "url": "https://github.com/gavrilux/agent-mouth.git" },
+  "license": "MIT",
+  "author": "Gavrilo Markovic Jankovic",
+  "type": "module",
+  "bin": { "agent-mouth": "./dist/index.js" },
+  "files": ["dist/", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "cp ../../README.md ./README.md && cp ../../LICENSE ./LICENSE"
+  },
+  "dependencies": {
+    "@agent-mouth/api": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.0",
+    "typescript": "5.5.4"
+  }
+}
