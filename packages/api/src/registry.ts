@@ -1,10 +1,12 @@
-import type { OffsetStore, Transport } from "@agent-mouth/core";
+import type { MessageStore, OffsetStore, Transport } from "@agent-mouth/core";
 
 export interface ToolContext {
   transport: Transport;
   configPath?: string;
   offsetStore?: OffsetStore;
   handle?: string;
+  messageStore?: MessageStore;
+  workspaceId?: string;
 }
 
 export interface ToolDef {

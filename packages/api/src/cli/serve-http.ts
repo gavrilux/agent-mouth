@@ -1,10 +1,20 @@
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { SupabaseOffsetStore } from "@agent-mouth/storage-supabase";
-import { TelegramTransport, type TelegramConfig } from "@agent-mouth/transport-telegram";
+import {
+  SupabaseOffsetStore,
+  SupabaseIdentityResolver,
+  SupabasePolicyEngine,
+  SupabaseThreadStore,
+  SupabaseMessageStore,
+  SupabaseWorkspaceStore,
+} from "@agent-mouth/storage-supabase";
+import { TelegramTransport, telegramUpdateToInbound, type TelegramConfig } from "@agent-mouth/transport-telegram";
+import { InboundMessageSchema } from "@agent-mouth/core";
 import { loadConfigFromEnv } from "../config.js";
 import { logger } from "../logger.js";
 import { buildServer } from "../server.js";
+import { processInbound, type RouterDeps } from "../router.js";
+import { forwardToBridge } from "../forwarders/bridge.js";
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -45,6 +55,31 @@ export async function serveHttp(): Promise<void> {
   }
 
   const offsetStore = new SupabaseOffsetStore(supabaseUrl, supabaseKey);
+
+  const workspaceStore = new SupabaseWorkspaceStore(supabaseUrl, supabaseKey);
+  const workspace = await workspaceStore.getDefault();
+  const identityResolver = new SupabaseIdentityResolver(supabaseUrl, supabaseKey);
+  const policyEngine = new SupabasePolicyEngine(supabaseUrl, supabaseKey);
+  const threadStore = new SupabaseThreadStore(supabaseUrl, supabaseKey);
+  const messageStore = new SupabaseMessageStore(supabaseUrl, supabaseKey);
+
+  const bridgeForwardUrl = process.env.BRIDGE_FORWARD_URL ?? null;
+  const bridgeForwardChats = new Set(
+    (process.env.BRIDGE_FORWARD_CHATS ?? "")
+      .split(",").map((s) => s.trim()).filter(Boolean),
+  );
+
+  const routerDeps: RouterDeps = {
+    workspaceId: workspace.id,
+    bridgeForwardChats,
+    bridgeForwardUrl,
+    identityResolver,
+    threadStore,
+    policyEngine,
+    messageStore,
+    forwarder: forwardToBridge,
+  };
+
   const PORT = Number(process.env.PORT ?? 3000);
   const AUTH_TOKEN = process.env.AGENT_MOUTH_AUTH_TOKEN;
 
@@ -60,6 +95,25 @@ export async function serveHttp(): Promise<void> {
 
       if (url.pathname === "/health" && req.method === "GET") {
         sendJson(res, 200, { ok: true, handle: config.telegram!.handle });
+        return;
+      }
+
+      if (url.pathname === "/telegram-webhook" && req.method === "POST") {
+        const body = await readJsonBody(req);
+        const inbound = telegramUpdateToInbound(body as Parameters<typeof telegramUpdateToInbound>[0]);
+        if (!inbound) {
+          sendJson(res, 200, { ok: true, skipped: true });
+          return;
+        }
+        const parsed = InboundMessageSchema.safeParse(inbound);
+        if (!parsed.success) {
+          logger.warn({ issues: parsed.error.issues }, "inbound schema mismatch");
+          sendJson(res, 200, { ok: true, skipped: true });
+          return;
+        }
+        const result = await processInbound(parsed.data, routerDeps);
+        logger.info({ result }, "webhook processed");
+        sendJson(res, 200, { ok: true, result });
         return;
       }
 
@@ -80,6 +134,8 @@ export async function serveHttp(): Promise<void> {
           transport: telegramTransport,
           offsetStore,
           handle: config.telegram!.handle,
+          messageStore,
+          workspaceId: workspace.id,
         });
         await server.connect(mcpTransport);
         const reqWithBody = Object.assign(req, { body });

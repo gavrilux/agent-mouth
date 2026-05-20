@@ -33,7 +33,7 @@ export const sendMessageTool: ToolDef = {
 export const readInboxTool: ToolDef = {
   name: "read_inbox",
   description:
-    "Returns recent messages from the group. Use filter='mentions' for messages addressed to you, 'replies' for replies to your messages, 'all' for everything (default 'mentions').",
+    "Returns recent messages. With persistence: cross-channel from MessageStore. Without: long-polled from the active transport.",
   inputSchema: {
     type: "object",
     properties: {
@@ -43,7 +43,7 @@ export const readInboxTool: ToolDef = {
     },
     additionalProperties: false,
   },
-  handler: async (input, { transport }) => {
+  handler: async (input, { transport, messageStore, workspaceId }) => {
     const parsed = z
       .object({
         filter: FilterEnum.optional().default("mentions"),
@@ -51,6 +51,13 @@ export const readInboxTool: ToolDef = {
         limit: z.number().int().min(1).max(200).optional().default(50),
       })
       .parse(input);
+    if (messageStore && workspaceId) {
+      return messageStore.listRecent({
+        workspaceId,
+        sinceId: parsed.since_message_id,
+        limit: parsed.limit,
+      });
+    }
     return transport.receive(parsed);
   },
 };
@@ -67,13 +74,20 @@ export const waitForMessagesTool: ToolDef = {
     },
     additionalProperties: false,
   },
-  handler: async (input, { transport }) => {
+  handler: async (input, { transport, messageStore, workspaceId }) => {
     const parsed = z
       .object({
         timeout_seconds: z.number().int().min(1).max(300).optional().default(30),
         filter: FilterEnum.optional().default("mentions"),
       })
       .parse(input);
+    if (messageStore && workspaceId) {
+      return messageStore.waitForNew({
+        workspaceId,
+        sinceCreatedAt: new Date().toISOString(),
+        timeoutSeconds: parsed.timeout_seconds,
+      });
+    }
     return transport.waitForMessages(parsed);
   },
 };

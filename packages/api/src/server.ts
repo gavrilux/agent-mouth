@@ -1,6 +1,6 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import type { OffsetStore, Transport } from "@agent-mouth/core";
+import type { MessageStore, OffsetStore, Transport } from "@agent-mouth/core";
 import { logger } from "./logger.js";
 import { tools } from "./registry.js";
 import "./tools/_register.js";
@@ -13,6 +13,8 @@ export interface ServerOptions {
   configPath?: string;
   offsetStore?: OffsetStore;
   handle?: string;
+  messageStore?: MessageStore;
+  workspaceId?: string;
 }
 
 export function buildServer(opts: ServerOptions): Server {
@@ -34,6 +36,8 @@ export function buildServer(opts: ServerOptions): Server {
         configPath: opts.configPath,
         offsetStore: opts.offsetStore,
         handle: opts.handle,
+        messageStore: opts.messageStore,
+        workspaceId: opts.workspaceId,
       });
       return {
         content: [{ type: "text", text: JSON.stringify({ ok: true, data: result }) }],
