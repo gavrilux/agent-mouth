@@ -68,6 +68,7 @@ export async function serveHttp(): Promise<void> {
     (process.env.BRIDGE_FORWARD_CHATS ?? "")
       .split(",").map((s) => s.trim()).filter(Boolean),
   );
+  const bridgeForwardSecret = process.env.BRIDGE_FORWARD_SECRET ?? undefined;
 
   const routerDeps: RouterDeps = {
     workspaceId: workspace.id,
@@ -77,7 +78,7 @@ export async function serveHttp(): Promise<void> {
     threadStore,
     policyEngine,
     messageStore,
-    forwarder: forwardToBridge,
+    forwarder: (url, payload) => forwardToBridge(url, payload, bridgeForwardSecret),
   };
 
   const PORT = Number(process.env.PORT ?? 3000);

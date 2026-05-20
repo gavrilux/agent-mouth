@@ -28,4 +28,22 @@ describe("forwardToBridge", () => {
     fetchMock.mockRejectedValueOnce(new Error("ECONNRESET"));
     expect(await forwardToBridge("https://lab.example/webhook", {})).toBe(false);
   });
+
+  it("includes X-Telegram-Bot-Api-Secret-Token header when secretToken is provided", async () => {
+    fetchMock.mockResolvedValueOnce(new Response("ok", { status: 200 }));
+    await forwardToBridge("https://lab.example/webhook", { update_id: 1 }, "s3cret");
+    expect(fetchMock).toHaveBeenCalledWith("https://lab.example/webhook", expect.objectContaining({
+      headers: {
+        "Content-Type": "application/json",
+        "X-Telegram-Bot-Api-Secret-Token": "s3cret",
+      },
+    }));
+  });
+
+  it("omits the secret header when secretToken is undefined", async () => {
+    fetchMock.mockResolvedValueOnce(new Response("ok", { status: 200 }));
+    await forwardToBridge("https://lab.example/webhook", {});
+    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+    expect(headers["X-Telegram-Bot-Api-Secret-Token"]).toBeUndefined();
+  });
 });
