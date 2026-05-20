@@ -1,8 +1,8 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Install pnpm — pinned to v9 (pnpm v11 requires Node 22+, we're on Node 20)
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 # Copy workspace files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
