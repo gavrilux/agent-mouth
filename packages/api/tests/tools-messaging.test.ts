@@ -2,7 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it, vi } from "vitest";
 import { buildServer } from "../src/server";
-import { readInboxTool } from "../src/tools/messaging.js";
+import { readInboxTool, waitForMessagesTool } from "../src/tools/messaging.js";
 import type { Transport } from "@agent-mouth/core";
 
 function fakeTransport(overrides: Partial<Transport> = {}): Transport {
@@ -159,5 +159,27 @@ describe("read_inbox with MessageStore present", () => {
     expect(transport.receive).not.toHaveBeenCalled();
     expect(Array.isArray(out)).toBe(true);
     expect((out as unknown[])[0]).toMatchObject({ content: "hola" });
+  });
+});
+
+describe("wait_for_messages with MessageStore present", () => {
+  it("uses messageStore.waitForNew", async () => {
+    const messageStore = {
+      insert: vi.fn(),
+      listRecent: vi.fn(),
+      waitForNew: vi.fn().mockResolvedValue([
+        { id: "cccccccc-cccc-cccc-cccc-cccccccccc02", thread_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01", channel_id: "22222222-2222-2222-2222-222222222222", channel_identity_id: null,
+          direction: "inbound", content: "yo", attachments: [], raw_payload: null,
+          external_message_id: "43", sent_by: null, created_at: "2026-05-20T00:00:01Z" },
+      ]),
+    };
+    const out = await waitForMessagesTool.handler(
+      { timeout_seconds: 5 },
+      { transport: { waitForMessages: vi.fn() } as never, messageStore: messageStore as never, workspaceId: "ws" },
+    );
+    expect(messageStore.waitForNew).toHaveBeenCalledWith(expect.objectContaining({
+      workspaceId: "ws", timeoutSeconds: 5,
+    }));
+    expect((out as unknown[]).length).toBe(1);
   });
 });

@@ -74,13 +74,20 @@ export const waitForMessagesTool: ToolDef = {
     },
     additionalProperties: false,
   },
-  handler: async (input, { transport }) => {
+  handler: async (input, { transport, messageStore, workspaceId }) => {
     const parsed = z
       .object({
         timeout_seconds: z.number().int().min(1).max(300).optional().default(30),
         filter: FilterEnum.optional().default("mentions"),
       })
       .parse(input);
+    if (messageStore && workspaceId) {
+      return messageStore.waitForNew({
+        workspaceId,
+        sinceCreatedAt: new Date().toISOString(),
+        timeoutSeconds: parsed.timeout_seconds,
+      });
+    }
     return transport.waitForMessages(parsed);
   },
 };
