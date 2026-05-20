@@ -6,7 +6,7 @@ export const WorkspaceSchema = z.object({
   name: z.string().min(1),
   owner_user_id: z.string().uuid().nullable(),
   plan: z.string().default("self-host"),
-  created_at: z.string().datetime(),
+  created_at: z.string().datetime({ offset: true }),
 });
 export type Workspace = z.infer<typeof WorkspaceSchema>;
 
@@ -15,7 +15,7 @@ export const ContactSchema = z.object({
   workspace_id: z.string().uuid(),
   display_name: z.string().min(1),
   notes: z.string().default(""),
-  created_at: z.string().datetime(),
+  created_at: z.string().datetime({ offset: true }),
 });
 export type Contact = z.infer<typeof ContactSchema>;
 
@@ -28,7 +28,7 @@ export const ChannelSchema = z.object({
   type: ChannelTypeEnum,
   config: z.record(z.unknown()),
   status: z.enum(["active", "paused", "error"]).default("active"),
-  created_at: z.string().datetime(),
+  created_at: z.string().datetime({ offset: true }),
 });
 export type Channel = z.infer<typeof ChannelSchema>;
 
@@ -53,7 +53,7 @@ export const PolicySchema = z.object({
   system_prompt: z.string().default(""),
   rules: z.record(z.unknown()).default({}),
   priority: z.number().int().default(0),
-  created_at: z.string().datetime(),
+  created_at: z.string().datetime({ offset: true }),
 });
 export type Policy = z.infer<typeof PolicySchema>;
 
@@ -64,8 +64,8 @@ export const ThreadSchema = z.object({
   channel_id: z.string().uuid(),
   external_thread_id: z.string().nullable(),
   related_thread_ids: z.array(z.string().uuid()).default([]),
-  last_message_at: z.string().datetime().nullable(),
+  last_message_at: z.string().datetime({ offset: true }).nullable(),
   closed: z.boolean().default(false),
-  created_at: z.string().datetime(),
+  created_at: z.string().datetime({ offset: true }),
 });
 export type Thread = z.infer<typeof ThreadSchema>;
