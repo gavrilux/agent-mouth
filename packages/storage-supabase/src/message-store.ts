@@ -32,7 +32,9 @@ export class SupabaseMessageStore implements MessageStore {
     });
     if (!res.ok) throw new Error(`message insert failed: ${res.status} ${await res.text()}`);
     const rows = (await res.json()) as PersistedMessage[];
-    return rows[0];
+    const row = rows[0];
+    if (!row) throw new Error("message insert returned no rows");
+    return row;
   }
 
   async listRecent(args: {
