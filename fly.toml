@@ -1,0 +1,33 @@
+# fly.toml — Agent Mouth cloud deployment
+# Docs: https://fly.io/docs/reference/configuration/
+
+app = "agent-mouth"
+primary_region = "mad"  # Madrid — closest to Gavrilo + Telegram EU servers
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "off"   # Always-on: Agent Mouth must respond to MCP calls anytime
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 50
+    soft_limit = 25
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/health"
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
