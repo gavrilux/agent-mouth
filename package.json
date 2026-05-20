@@ -6,7 +6,9 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "biome check .",
-    "format": "biome format --write ."
+    "format": "biome format --write .",
+    "dev:serve-http": "node apps/cli/dist/index.js serve-http",
+    "npm:pack": "pnpm --filter ./apps/cli pack"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
