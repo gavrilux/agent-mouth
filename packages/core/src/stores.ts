@@ -1,6 +1,5 @@
 // packages/core/src/stores.ts
 import type { Workspace, Contact, ChannelIdentity, Channel, Policy, Thread } from "./identity.js";
-import type { InboundMessage } from "./inbound.js";
 
 export interface WorkspaceStore {
   getDefault(): Promise<Workspace>;
