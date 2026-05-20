@@ -1,6 +1,6 @@
 import { Bot } from "grammy";
 import type {
-  Contact,
+  TransportContact,
   Identity,
   OffsetStore,
   ReceiveOptions,
@@ -60,7 +60,7 @@ export class TelegramTransport implements Transport {
     };
   }
 
-  async listContacts(): Promise<Contact[]> {
+  async listContacts(): Promise<TransportContact[]> {
     if (!this.bot) throw new Error("Transport not initialized");
     const admins = await this.bot.api.getChatAdministrators(this.chatId);
     return admins
