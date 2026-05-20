@@ -2,6 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it, vi } from "vitest";
 import { buildServer } from "../src/server";
+import { readInboxTool } from "../src/tools/messaging.js";
 import type { Transport } from "@agent-mouth/core";
 
 function fakeTransport(overrides: Partial<Transport> = {}): Transport {
@@ -134,5 +135,29 @@ describe("messaging tools", () => {
     expect(loaded?.last_seen_update_id).toBe(100);
 
     rmSync(tmp, { recursive: true, force: true });
+  });
+});
+
+describe("read_inbox with MessageStore present", () => {
+  it("reads from messageStore.listRecent instead of transport.receive", async () => {
+    const messageStore = {
+      insert: vi.fn(),
+      listRecent: vi.fn().mockResolvedValue([
+        { id: "cccccccc-cccc-cccc-cccc-cccccccccc01", thread_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01", channel_id: "22222222-2222-2222-2222-222222222222", channel_identity_id: null,
+          direction: "inbound", content: "hola", attachments: [], raw_payload: null,
+          external_message_id: "42", sent_by: null, created_at: "2026-05-20T00:00:00Z" },
+      ]),
+      waitForNew: vi.fn(),
+    };
+    const transport = { receive: vi.fn() };
+    const out = await readInboxTool.handler({ limit: 10 }, {
+      transport: transport as never,
+      messageStore: messageStore as never,
+      workspaceId: "ws",
+    });
+    expect(messageStore.listRecent).toHaveBeenCalledWith({ workspaceId: "ws", limit: 10, sinceId: undefined });
+    expect(transport.receive).not.toHaveBeenCalled();
+    expect(Array.isArray(out)).toBe(true);
+    expect((out as unknown[])[0]).toMatchObject({ content: "hola" });
   });
 });
