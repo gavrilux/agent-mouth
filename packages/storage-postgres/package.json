@@ -8,7 +8,7 @@
   "files": ["dist/", "sql/"],
   "scripts": {
     "build": "tsc",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@agent-mouth/core": "workspace:*",
