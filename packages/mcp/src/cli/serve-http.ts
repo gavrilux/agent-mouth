@@ -58,20 +58,21 @@ export async function serveHttp(): Promise<void> {
 
   const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     try {
-      // Auth check
+      const url = new URL(req.url ?? "/", `http://localhost`);
+
+      // Health check — public, no auth required (Fly.io health probes are unauthenticated)
+      if (url.pathname === "/health" && req.method === "GET") {
+        sendJson(res, 200, { ok: true, handle: config.telegram!.handle });
+        return;
+      }
+
+      // Auth check for all other endpoints
       if (AUTH_TOKEN) {
         const authHeader = req.headers.authorization ?? "";
         if (authHeader !== `Bearer ${AUTH_TOKEN}`) {
           sendJson(res, 401, { error: "Unauthorized" });
           return;
         }
-      }
-
-      const url = new URL(req.url ?? "/", `http://localhost`);
-
-      if (url.pathname === "/health" && req.method === "GET") {
-        sendJson(res, 200, { ok: true, handle: config.telegram!.handle });
-        return;
       }
 
       if (url.pathname === "/mcp" && req.method === "POST") {
