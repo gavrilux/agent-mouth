@@ -1,0 +1,61 @@
+// packages/api/src/router.ts
+import type {
+  InboundMessage, IdentityResolver, PolicyEngine, ThreadStore, MessageStore, PolicyAction,
+} from "@agent-mouth/core";
+
+export interface RouterDeps {
+  workspaceId: string;
+  bridgeForwardChats: Set<string>;
+  bridgeForwardUrl: string | null;
+  identityResolver: IdentityResolver;
+  threadStore: ThreadStore;
+  policyEngine: PolicyEngine;
+  messageStore: MessageStore;
+  forwarder: (url: string, payload: unknown) => Promise<boolean>;
+}
+
+export type RouterResult =
+  | { kind: "forwarded"; url: string; ok: boolean }
+  | { kind: "persisted"; policy: PolicyAction; messageId: string }
+  | { kind: "skipped"; reason: string };
+
+export async function processInbound(msg: InboundMessage, deps: RouterDeps): Promise<RouterResult> {
+  if (deps.bridgeForwardChats.has(msg.external_thread_id) && deps.bridgeForwardUrl) {
+    const ok = await deps.forwarder(deps.bridgeForwardUrl, msg.raw_payload);
+    return { kind: "forwarded", url: deps.bridgeForwardUrl, ok };
+  }
+
+  const ident = await deps.identityResolver.resolveOrCreate({
+    workspaceId: deps.workspaceId,
+    channelType: msg.channel_type,
+    identifier: msg.sender_identifier,
+    displayName: msg.sender_display_name,
+  });
+
+  const thread = await deps.threadStore.resolveOrCreate({
+    workspaceId: deps.workspaceId,
+    contactId: ident.contact.id,
+    channelId: ident.channel.id,
+    externalThreadId: msg.external_thread_id,
+  });
+
+  const policy = await deps.policyEngine.evaluate({
+    workspaceId: deps.workspaceId,
+    contactId: ident.contact.id,
+    channelType: msg.channel_type,
+  });
+
+  const persisted = await deps.messageStore.insert({
+    threadId: thread.id,
+    channelId: ident.channel.id,
+    channelIdentityId: ident.channel_identity.id,
+    direction: "inbound",
+    content: msg.content,
+    attachments: msg.attachments,
+    rawPayload: msg.raw_payload,
+    externalMessageId: msg.external_message_id,
+    sentBy: null,
+  });
+
+  return { kind: "persisted", policy: policy.policy, messageId: persisted.id };
+}
