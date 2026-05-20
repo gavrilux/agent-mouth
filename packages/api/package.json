@@ -4,7 +4,13 @@
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
-  "exports": { ".": "./dist/index.js" },
+  "exports": {
+    ".": "./dist/index.js",
+    "./cli/serve": "./dist/cli/serve.js",
+    "./cli/serve-http": "./dist/cli/serve-http.js",
+    "./cli/init": "./dist/cli/init.js",
+    "./cli/join": "./dist/cli/join.js"
+  },
   "files": ["dist/"],
   "scripts": {
     "build": "tsc",
@@ -15,6 +21,7 @@
     "@agent-mouth/transport-telegram": "workspace:*",
     "@agent-mouth/storage-supabase": "workspace:*",
     "@hono/node-server": "^1.13.0",
+    "grammy": "^1.30.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "hono": "^4.0.0",
     "pino": "^9.4.0",
