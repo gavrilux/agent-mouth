@@ -39,6 +39,9 @@ importers:
       '@agent-mouth/storage-supabase':
         specifier: workspace:*
         version: link:../storage-supabase
+      '@agent-mouth/transport-telegram':
+        specifier: workspace:*
+        version: link:../transport-telegram
       '@hono/node-server':
         specifier: ^1.13.0
         version: 1.19.14(hono@4.12.18)
@@ -79,6 +82,25 @@ importers:
       '@agent-mouth/core':
         specifier: workspace:*
         version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^20.16.0
+        version: 20.19.41
+      typescript:
+        specifier: 5.5.4
+        version: 5.5.4
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.41)(msw@2.14.6(@types/node@20.19.41)(typescript@5.5.4))
+
+  packages/transport-telegram:
+    dependencies:
+      '@agent-mouth/core':
+        specifier: workspace:*
+        version: link:../core
+      grammy:
+        specifier: ^1.30.0
+        version: 1.42.0
     devDependencies:
       '@types/node':
         specifier: ^20.16.0

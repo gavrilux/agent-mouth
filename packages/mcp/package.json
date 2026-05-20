@@ -21,6 +21,7 @@
   "dependencies": {
     "@agent-mouth/core": "workspace:*",
     "@agent-mouth/storage-supabase": "workspace:*",
+    "@agent-mouth/transport-telegram": "workspace:*",
     "@hono/node-server": "^1.13.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "grammy": "^1.30.0",
