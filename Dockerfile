@@ -16,7 +16,6 @@ COPY packages/storage-postgres/package.json packages/storage-postgres/tsconfig.j
 COPY packages/transport-telegram/package.json packages/transport-telegram/tsconfig.json packages/transport-telegram/
 COPY packages/agent/package.json packages/agent/tsconfig.json packages/agent/
 COPY packages/api/package.json packages/api/tsconfig.json packages/api/
-COPY packages/mcp/package.json packages/mcp/tsconfig.json packages/mcp/
 COPY apps/cli/package.json apps/cli/tsconfig.json apps/cli/
 
 # Install all dependencies (needed for full workspace build)
@@ -30,7 +29,6 @@ COPY packages/storage-postgres/src packages/storage-postgres/src
 COPY packages/transport-telegram/src packages/transport-telegram/src
 COPY packages/agent/src packages/agent/src
 COPY packages/api/src packages/api/src
-COPY packages/mcp/src packages/mcp/src
 COPY apps/cli/src apps/cli/src
 RUN pnpm -r build
 
