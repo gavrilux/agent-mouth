@@ -72,6 +72,7 @@ export interface PersistedMessage {
 
 export interface MessageStore {
   insert(msg: PersistedMessageInput): Promise<PersistedMessage>;
+  lastN(threadId: string, n: number): Promise<PersistedMessage[]>;
   listRecent(args: {
     workspaceId: string;
     threadId?: string;
