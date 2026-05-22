@@ -4,7 +4,7 @@ import type {
 import type {
   AgentRuntime, AgentResponse, AgentContext, ChannelType,
 } from "@agent-mouth/agent-runtime";
-import { WorkingMemoryBuilder, EpisodicMemoryBuilder } from "@agent-mouth/agent-memory";
+import { WorkingMemoryBuilder } from "@agent-mouth/agent-memory";
 import { runPreLLMGuardrails } from "@agent-mouth/agent-guardrails";
 
 export interface AgentDeps {
@@ -35,11 +35,9 @@ export type AgentDecision =
 
 export class Agent {
   private workingMem: WorkingMemoryBuilder;
-  private episodicMem: EpisodicMemoryBuilder;
 
   constructor(private deps: AgentDeps) {
     this.workingMem = new WorkingMemoryBuilder(deps.messageStore, deps.workingMemorySize ?? 10);
-    this.episodicMem = new EpisodicMemoryBuilder(deps.contactStore);
   }
 
   async respond(input: RespondInput): Promise<AgentDecision> {
@@ -78,7 +76,7 @@ export class Agent {
     if (!contact) {
       return { decision: "no_action", blockReason: "contact_not_found" };
     }
-    const notes = await this.episodicMem.build(input.workspaceId, input.contactId);
+    const notes = contact.notes ?? "";
     const workingHistory = await this.workingMem.build(input.threadId);
 
     const ctx: AgentContext = {
