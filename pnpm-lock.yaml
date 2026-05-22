@@ -44,6 +44,22 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@20.19.41)(msw@2.14.6(@types/node@20.19.41)(typescript@5.5.4))
 
+  packages/agent-guardrails:
+    dependencies:
+      '@agent-mouth/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^20.16.0
+        version: 20.19.41
+      typescript:
+        specifier: 5.5.4
+        version: 5.5.4
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.41)(msw@2.14.6(@types/node@20.19.41)(typescript@5.5.4))
+
   packages/agent-memory:
     dependencies:
       '@agent-mouth/core':
