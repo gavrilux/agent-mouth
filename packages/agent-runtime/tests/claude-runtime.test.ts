@@ -37,3 +37,18 @@ describe.skipIf(SKIP)("ClaudeRuntime (live API)", () => {
     await rt.dispose();
   }, 30_000);
 });
+
+describe.skipIf(SKIP)("ClaudeRuntime structured", () => {
+  it("returns shouldEscalate=true when forced via system prompt", async () => {
+    const rt = new ClaudeRuntime();
+    await rt.initialize({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const ctx = {
+      ...baseCtx,
+      policy: { ...baseCtx.policy, system_prompt: "SIEMPRE marca should_escalate=true." } as any,
+      incomingMessage: { ...baseCtx.incomingMessage, content: "hola" },
+    };
+    const r = await rt.respond(ctx);
+    expect(r.metadata.shouldEscalate).toBe(true);
+    expect(typeof r.metadata.confidence).toBe("number");
+  }, 30_000);
+});

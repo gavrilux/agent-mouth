@@ -23,33 +23,66 @@ export class ClaudeRuntime implements AgentRuntime {
     const system = buildSystemPrompt(ctx);
     const messages = buildUserMessages(ctx);
 
+    const respondTool = {
+      name: "respond_to_user",
+      description: "Construye la respuesta final al usuario con metadatos.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          body: { type: "string", description: "Texto de respuesta al usuario." },
+          reasoning: { type: "string", description: "Resumen breve de por qué esta respuesta." },
+          confidence: { type: "number", description: "Confianza 0-1." },
+          should_escalate: { type: "boolean", description: "true si el tema te supera." },
+        },
+        required: ["body", "reasoning", "confidence", "should_escalate"],
+      },
+    };
+
     const res = await this.client.messages.create({
       model,
       max_tokens: ctx.policy.max_tokens_out,
       system,
       messages,
+      tools: [respondTool],
+      tool_choice: { type: "tool", name: "respond_to_user" },
     });
 
-    const body = res.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("\n");
+    const toolUse = res.content.find(
+      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === "respond_to_user",
+    );
 
     const tokens = {
       in: res.usage.input_tokens,
       out: res.usage.output_tokens,
-      // cache_read_input_tokens added in later SDK versions; cast for forward-compat
-      cached: ((res.usage as unknown) as Record<string, unknown>)["cache_read_input_tokens"] as number ?? 0,
+      cached: (res.usage as unknown as Record<string, unknown>).cache_read_input_tokens as number ?? 0,
     };
     const costUsd = this.computeCost(model, tokens);
 
+    if (!toolUse) {
+      return {
+        body: "",
+        reasoning: "fallback: model did not invoke respond_to_user tool",
+        toolsCalled: [],
+        tokens,
+        costUsd,
+        metadata: { confidence: 0, shouldEscalate: true },
+      };
+    }
+
+    const input = toolUse.input as {
+      body: string;
+      reasoning: string;
+      confidence: number;
+      should_escalate: boolean;
+    };
+
     return {
-      body,
-      reasoning: "(basic mode, no structured reasoning)",
+      body: input.body,
+      reasoning: input.reasoning,
       toolsCalled: [],
       tokens,
       costUsd,
-      metadata: { confidence: 1, shouldEscalate: false },
+      metadata: { confidence: input.confidence, shouldEscalate: input.should_escalate },
     };
   }
 
