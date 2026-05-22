@@ -6,7 +6,7 @@ export const WorkspaceSchema = z.object({
   name: z.string().min(1),
   owner_user_id: z.string().uuid().nullable(),
   plan: z.string().default("self-host"),
-  daily_budget_usd_cap: z.number().default(0),
+  daily_budget_usd_cap: z.number().nonnegative().default(5),
   created_at: z.string().datetime({ offset: true }),
 });
 export type Workspace = z.infer<typeof WorkspaceSchema>;

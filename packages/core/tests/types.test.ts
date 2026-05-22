@@ -18,6 +18,7 @@ describe("Phase 2 types", () => {
       max_tool_calls: 10,
       forbidden_topics_regex: [],
       escalate_triggers_regex: [],
+      created_at: new Date().toISOString(),
     };
     expect(p.policy).toBe("auto");
   });

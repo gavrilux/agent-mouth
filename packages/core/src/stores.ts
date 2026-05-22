@@ -117,6 +117,7 @@ export interface AuditEntry {
 }
 
 export interface DraftStore {
+  /** Inserts a draft with status='pending'. Approval workflow handled outside this interface. */
   insert(input: Omit<Draft, "id" | "created_at" | "status" | "approved_by" | "approved_at">): Promise<Draft>;
   findPendingByMessageId(messageId: string): Promise<Draft | null>;
 }
@@ -148,6 +149,7 @@ export interface AuditLogStore {
 export interface JobQueue {
   start(): Promise<void>;
   stop(): Promise<void>;
+  /** Returns the job id, or null if deduplicated by singletonKey. */
   send<T>(name: string, data: T, options?: { singletonKey?: string }): Promise<string | null>;
   work<T>(name: string, handler: (data: T) => Promise<void>): Promise<void>;
 }
