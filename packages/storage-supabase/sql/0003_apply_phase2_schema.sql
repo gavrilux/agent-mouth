@@ -25,13 +25,13 @@ ALTER TABLE audit_log
   ADD COLUMN cost_usd NUMERIC(12,6),
   ADD COLUMN latency_ms INTEGER;
 
-CREATE INDEX idx_audit_workspace_day ON audit_log(workspace_id, created_at)
+CREATE INDEX IF NOT EXISTS idx_audit_workspace_day ON audit_log(workspace_id, created_at)
   WHERE decision IN ('sent','draft');
 
-CREATE INDEX idx_audit_contact_recent ON audit_log(related_contact_id, created_at)
+CREATE INDEX IF NOT EXISTS idx_audit_contact_recent ON audit_log(related_contact_id, created_at)
   WHERE decision IN ('sent','draft');
 
-CREATE INDEX idx_messages_thread_direction ON messages(thread_id, direction, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_thread_direction ON messages(thread_id, direction, created_at DESC);
 
 -- 4. Notes updater throttle per thread
 ALTER TABLE threads
