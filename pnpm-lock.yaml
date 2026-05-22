@@ -125,9 +125,21 @@ importers:
 
   packages/api:
     dependencies:
+      '@agent-mouth/agent':
+        specifier: workspace:*
+        version: link:../agent
+      '@agent-mouth/agent-notes-updater':
+        specifier: workspace:*
+        version: link:../agent-notes-updater
+      '@agent-mouth/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
       '@agent-mouth/core':
         specifier: workspace:*
         version: link:../core
+      '@agent-mouth/queue-pgboss':
+        specifier: workspace:*
+        version: link:../queue-pgboss
       '@agent-mouth/storage-supabase':
         specifier: workspace:*
         version: link:../storage-supabase

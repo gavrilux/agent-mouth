@@ -7,7 +7,9 @@ import {
   SupabaseThreadStore,
   SupabaseMessageStore,
   SupabaseWorkspaceStore,
+  SupabaseContactStore,
 } from "@agent-mouth/storage-supabase";
+import { startWorker } from "../worker.js";
 import { TelegramTransport, telegramUpdateToInbound, type TelegramConfig } from "@agent-mouth/transport-telegram";
 import { InboundMessageSchema } from "@agent-mouth/core";
 import { loadConfigFromEnv } from "../config.js";
@@ -62,6 +64,7 @@ export async function serveHttp(): Promise<void> {
   const policyEngine = new SupabasePolicyEngine(supabaseUrl, supabaseKey);
   const threadStore = new SupabaseThreadStore(supabaseUrl, supabaseKey);
   const messageStore = new SupabaseMessageStore(supabaseUrl, supabaseKey);
+  const contactStore = new SupabaseContactStore(supabaseUrl, supabaseKey);
 
   const bridgeForwardUrl = process.env.BRIDGE_FORWARD_URL ?? null;
   const bridgeForwardChats = new Set(
@@ -89,6 +92,31 @@ export async function serveHttp(): Promise<void> {
     ...config.telegram,
     offsetStore,
   } as TelegramConfig);
+
+  const databaseUrl = process.env.DATABASE_URL;
+  const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  let workerCtl: Awaited<ReturnType<typeof startWorker>> | null = null;
+
+  if (databaseUrl && anthropicApiKey) {
+    workerCtl = await startWorker({
+      databaseUrl,
+      supabaseUrl,
+      supabaseAnonKey: supabaseKey,
+      anthropicApiKey,
+      defaultModel: process.env.DEFAULT_AGENT_MODEL ?? "claude-sonnet-4-6",
+      notesModel: process.env.NOTES_UPDATER_MODEL ?? "claude-haiku-4-5-20251001",
+      enableNotesUpdater: process.env.ENABLE_NOTES_UPDATER === "true",
+      contactStore,
+      messageStore,
+      threadStore,
+      workspaceStore,
+      policyEngine,
+      transport: telegramTransport,
+    });
+    logger.info("pg-boss worker started");
+  } else {
+    logger.warn("DATABASE_URL or ANTHROPIC_API_KEY not set — worker not started");
+  }
 
   const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     try {
@@ -162,7 +190,10 @@ export async function serveHttp(): Promise<void> {
   for (const sig of ["SIGTERM", "SIGINT"] as const) {
     process.on(sig, () => {
       logger.info({ signal: sig }, "shutting down");
-      httpServer.close(() => process.exit(0));
+      httpServer.close(async () => {
+        if (workerCtl) await workerCtl.stop();
+        process.exit(0);
+      });
     });
   }
 }
