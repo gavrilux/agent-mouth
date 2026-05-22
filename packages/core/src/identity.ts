@@ -73,6 +73,7 @@ export const ThreadSchema = z.object({
   related_thread_ids: z.array(z.string().uuid()).default([]),
   last_message_at: z.string().datetime({ offset: true }).nullable(),
   closed: z.boolean().default(false),
+  notes_last_updated_at: z.string().datetime({ offset: true }).nullable().default(null),
   created_at: z.string().datetime({ offset: true }),
 });
 export type Thread = z.infer<typeof ThreadSchema>;

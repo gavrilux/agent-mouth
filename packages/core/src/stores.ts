@@ -42,6 +42,8 @@ export interface ThreadStore {
     channelId: string;
     externalThreadId: string;
   }): Promise<Thread>;
+  get(threadId: string): Promise<Thread | null>;
+  markNotesUpdated(threadId: string): Promise<void>;
 }
 
 export interface PersistedMessageInput {
@@ -73,6 +75,7 @@ export interface PersistedMessage {
 export interface MessageStore {
   insert(msg: PersistedMessageInput): Promise<PersistedMessage>;
   lastN(threadId: string, n: number): Promise<PersistedMessage[]>;
+  countSinceTimestamp(threadId: string, sinceIso: string): Promise<number>;
   listRecent(args: {
     workspaceId: string;
     threadId?: string;
