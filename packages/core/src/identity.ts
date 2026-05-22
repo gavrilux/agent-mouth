@@ -55,7 +55,7 @@ export const PolicySchema = z.object({
   rules: z.record(z.unknown()).default({}),
   priority: z.number().int().default(0),
   model_id: z.string().nullable().default(null),
-  rate_limit_per_hour: z.number().int().nonnegative().default(60),
+  rate_limit_per_hour: z.number().int().nonnegative().default(10),
   max_tokens_out: z.number().int().positive().default(8000),
   max_tool_calls: z.number().int().nonnegative().default(10),
   forbidden_topics_regex: z.array(z.string()).default([]),

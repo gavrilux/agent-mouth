@@ -45,7 +45,7 @@ describe("identity schemas", () => {
     expect(PolicySchema.parse(p)).toEqual({
       ...p,
       model_id: null,
-      rate_limit_per_hour: 60,
+      rate_limit_per_hour: 10,
       max_tokens_out: 8000,
       max_tool_calls: 10,
       forbidden_topics_regex: [],
