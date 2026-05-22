@@ -12,6 +12,12 @@ const DEFAULT_POLICY: Policy = {
   rules: {},
   priority: 0,
   created_at: "1970-01-01T00:00:00.000Z",
+  model_id: null,
+  rate_limit_per_hour: 10,
+  max_tokens_out: 8000,
+  max_tool_calls: 10,
+  forbidden_topics_regex: [],
+  escalate_triggers_regex: [],
 };
 
 export class SupabasePolicyEngine implements PolicyEngine {

@@ -33,4 +33,17 @@ export class SupabaseContactStore implements ContactStore {
     const rows = (await res.json()) as unknown[];
     return ContactSchema.parse(rows[0]);
   }
+
+  async updateNotes(contactId: string, notes: string): Promise<void> {
+    const truncated = notes.length > 2000 ? notes.slice(0, 2000) : notes;
+    const res = await fetch(
+      `${this.url}/rest/v1/contacts?id=eq.${contactId}`,
+      {
+        method: "PATCH",
+        headers: this.headers(),
+        body: JSON.stringify({ notes: truncated }),
+      },
+    );
+    if (!res.ok) throw new Error(`contacts updateNotes failed: ${res.status} ${await res.text()}`);
+  }
 }
