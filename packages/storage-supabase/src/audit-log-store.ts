@@ -51,7 +51,7 @@ export class SupabaseAuditLogStore implements AuditLogStore {
     url.searchParams.set("decision", "in.(sent,draft)");
     url.searchParams.set("select", "cost_usd");
     const res = await fetch(url, { headers: this.headers() });
-    if (!res.ok) throw new Error(`audit_log sum failed: ${res.status}`);
+    if (!res.ok) throw new Error(`audit_log sum failed: ${res.status} ${await res.text()}`);
     const rows = (await res.json()) as Array<{ cost_usd: number | null }>;
     return rows.reduce((acc, r) => acc + (r.cost_usd ?? 0), 0);
   }
@@ -65,10 +65,10 @@ export class SupabaseAuditLogStore implements AuditLogStore {
     const res = await fetch(url, {
       headers: { ...this.headers(), Prefer: "count=exact" },
     });
-    if (!res.ok) throw new Error(`audit_log count failed: ${res.status}`);
+    if (!res.ok) throw new Error(`audit_log count failed: ${res.status} ${await res.text()}`);
     const range = res.headers.get("content-range");
     const total = range?.split("/").at(-1) ?? "0";
-    return Number.parseInt(total, 10);
+    return Number.parseInt(total, 10) || 0;
   }
 
   async findRespondedFor(messageId: string): Promise<AuditEntry | null> {
@@ -77,7 +77,7 @@ export class SupabaseAuditLogStore implements AuditLogStore {
     url.searchParams.set("decision", "in.(sent,draft)");
     url.searchParams.set("limit", "1");
     const res = await fetch(url, { headers: this.headers() });
-    if (!res.ok) throw new Error(`audit_log find failed: ${res.status}`);
+    if (!res.ok) throw new Error(`audit_log find failed: ${res.status} ${await res.text()}`);
     const rows = (await res.json()) as AuditEntry[];
     return rows[0] ?? null;
   }
