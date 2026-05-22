@@ -30,6 +30,15 @@ importers:
 
   packages/agent:
     dependencies:
+      '@agent-mouth/agent-guardrails':
+        specifier: workspace:*
+        version: link:../agent-guardrails
+      '@agent-mouth/agent-memory':
+        specifier: workspace:*
+        version: link:../agent-memory
+      '@agent-mouth/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
       '@agent-mouth/core':
         specifier: workspace:*
         version: link:../core
