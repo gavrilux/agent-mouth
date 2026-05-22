@@ -8,6 +8,7 @@ export interface WorkspaceStore {
 export interface ContactStore {
   findById(workspaceId: string, id: string): Promise<Contact | null>;
   upsertByDisplayName(workspaceId: string, displayName: string): Promise<Contact>;
+  updateNotes(contactId: string, notes: string): Promise<void>;
 }
 
 export interface IdentityResolveResult {
@@ -82,4 +83,71 @@ export interface MessageStore {
     sinceCreatedAt: string;
     timeoutSeconds: number;
   }): Promise<PersistedMessage[]>;
+}
+
+export interface Draft {
+  id: string;
+  message_id: string;
+  proposed_body: string;
+  agent_reasoning: string;
+  tools_called: Array<Record<string, unknown>>;
+  status: "pending" | "approved" | "rejected" | "edited";
+  approved_by: string | null;
+  approved_at: string | null;
+  created_at: string;
+}
+
+export interface AuditEntry {
+  id: string;
+  workspace_id: string;
+  action: string;
+  actor: "human" | "agent" | "system";
+  details: Record<string, unknown>;
+  related_message_id: string | null;
+  related_contact_id: string | null;
+  decision: "sent" | "draft" | "blocked" | "escalated" | "no_action" | null;
+  block_reason: string | null;
+  model_id: string | null;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  tokens_cached: number | null;
+  cost_usd: number | null;
+  latency_ms: number | null;
+  created_at: string;
+}
+
+export interface DraftStore {
+  insert(input: Omit<Draft, "id" | "created_at" | "status" | "approved_by" | "approved_at">): Promise<Draft>;
+  findPendingByMessageId(messageId: string): Promise<Draft | null>;
+}
+
+export interface AuditLogInput {
+  workspace_id: string;
+  action: string;
+  actor: "human" | "agent" | "system";
+  details?: Record<string, unknown>;
+  related_message_id?: string | null;
+  related_contact_id?: string | null;
+  decision?: AuditEntry["decision"];
+  block_reason?: string | null;
+  model_id?: string | null;
+  tokens_in?: number | null;
+  tokens_out?: number | null;
+  tokens_cached?: number | null;
+  cost_usd?: number | null;
+  latency_ms?: number | null;
+}
+
+export interface AuditLogStore {
+  write(input: AuditLogInput): Promise<AuditEntry>;
+  sumCostUsdSince(workspaceId: string, sinceIso: string): Promise<number>;
+  countSentOrDraftSince(contactId: string, sinceIso: string): Promise<number>;
+  findRespondedFor(messageId: string): Promise<AuditEntry | null>;
+}
+
+export interface JobQueue {
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  send<T>(name: string, data: T, options?: { singletonKey?: string }): Promise<string | null>;
+  work<T>(name: string, handler: (data: T) => Promise<void>): Promise<void>;
 }
