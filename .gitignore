@@ -2,7 +2,7 @@ node_modules/
 dist/
 *.log
 .DS_Store
-~/.agent-mouth/
+# Runtime config lives at ~/.agent-mouth/config.json (outside the repo)
 coverage/
 .env
 .env.local
