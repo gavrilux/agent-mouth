@@ -9,6 +9,14 @@ primary_region = 'cdg'
 [build]
   dockerfile = 'Dockerfile'
 
+[env]
+  # Para cambiar a Gemini: pon "gemini-2.5-flash" o "gemini-2.5-pro" aquí
+  # y configura GOOGLE_API_KEY como secret. Cualquier modelo que empiece por
+  # "gemini-" enruta al GeminiRuntime; el resto va a ClaudeRuntime.
+  DEFAULT_AGENT_MODEL = "claude-sonnet-4-6"
+  NOTES_UPDATER_MODEL = "claude-haiku-4-5-20251001"
+  ENABLE_NOTES_UPDATER = "false"
+
 [http_service]
   internal_port = 3000
   force_https = true

@@ -16,7 +16,7 @@ describe("identity schemas", () => {
 
   it("WorkspaceSchema parses valid row", () => {
     const w = { id: wsId, name: "default", owner_user_id: null, plan: "self-host", created_at: "2026-05-20T00:00:00Z" };
-    expect(WorkspaceSchema.parse(w)).toEqual(w);
+    expect(WorkspaceSchema.parse(w)).toEqual({ ...w, daily_budget_usd_cap: 1 });
   });
 
   it("ContactSchema parses valid row", () => {
@@ -42,7 +42,15 @@ describe("identity schemas", () => {
       policy: "silent", system_prompt: "", rules: {}, priority: 0,
       created_at: "2026-05-20T00:00:00Z",
     };
-    expect(PolicySchema.parse(p)).toEqual(p);
+    expect(PolicySchema.parse(p)).toEqual({
+      ...p,
+      model_id: null,
+      rate_limit_per_hour: 10,
+      max_tokens_out: 8000,
+      max_tool_calls: 10,
+      forbidden_topics_regex: [],
+      escalate_triggers_regex: [],
+    });
   });
 
   it("ThreadSchema parses valid row", () => {
@@ -52,6 +60,6 @@ describe("identity schemas", () => {
       external_thread_id: "-5286864201", related_thread_ids: [],
       last_message_at: null, closed: false, created_at: "2026-05-20T00:00:00Z",
     };
-    expect(ThreadSchema.parse(t)).toEqual(t);
+    expect(ThreadSchema.parse(t)).toEqual({ ...t, notes_last_updated_at: null });
   });
 });

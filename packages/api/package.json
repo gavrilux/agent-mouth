@@ -18,6 +18,10 @@
   },
   "dependencies": {
     "@agent-mouth/core": "workspace:*",
+    "@agent-mouth/agent": "workspace:*",
+    "@agent-mouth/agent-runtime": "workspace:*",
+    "@agent-mouth/agent-notes-updater": "workspace:*",
+    "@agent-mouth/queue-pgboss": "workspace:*",
     "@agent-mouth/transport-telegram": "workspace:*",
     "@agent-mouth/storage-supabase": "workspace:*",
     "@hono/node-server": "^1.13.0",

@@ -37,6 +37,36 @@ export class SupabaseMessageStore implements MessageStore {
     return row;
   }
 
+  async countSinceTimestamp(threadId: string, sinceIso: string): Promise<number> {
+    const params = [
+      "select=id",
+      `thread_id=eq.${encodeURIComponent(threadId)}`,
+      `created_at=gte.${encodeURIComponent(sinceIso)}`,
+    ];
+    const res = await fetch(`${this.url}/rest/v1/messages?${params.join("&")}`, {
+      headers: this.headers({ Prefer: "count=exact" }),
+    });
+    if (!res.ok) throw new Error(`message countSinceTimestamp failed: ${res.status}`);
+    const contentRange = res.headers.get("content-range");
+    if (!contentRange) return 0;
+    // content-range: 0-N/TOTAL  or  */TOTAL
+    const match = contentRange.match(/\/(\d+)$/);
+    return match ? parseInt(match[1]!, 10) : 0;
+  }
+
+  async lastN(threadId: string, n: number): Promise<PersistedMessage[]> {
+    const params = [
+      "select=*",
+      `thread_id=eq.${threadId}`,
+      "order=created_at.desc",
+      `limit=${n}`,
+    ];
+    const res = await fetch(`${this.url}/rest/v1/messages?${params.join("&")}`, { headers: this.headers() });
+    if (!res.ok) throw new Error(`message lastN failed: ${res.status}`);
+    const rows = (await res.json()) as PersistedMessage[];
+    return rows.reverse();
+  }
+
   async listRecent(args: {
     workspaceId: string;
     threadId?: string;

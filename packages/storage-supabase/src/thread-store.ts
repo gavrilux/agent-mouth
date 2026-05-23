@@ -34,4 +34,27 @@ export class SupabaseThreadStore implements ThreadStore {
     const rows = (await res.json()) as unknown[];
     return ThreadSchema.parse(rows[0]);
   }
+
+  async get(threadId: string): Promise<Thread | null> {
+    const res = await fetch(
+      `${this.url}/rest/v1/threads?id=eq.${encodeURIComponent(threadId)}&limit=1`,
+      { headers: this.headers() },
+    );
+    if (!res.ok) throw new Error(`thread get failed: ${res.status} ${await res.text()}`);
+    const rows = (await res.json()) as unknown[];
+    if (!rows.length) return null;
+    return ThreadSchema.parse(rows[0]);
+  }
+
+  async markNotesUpdated(threadId: string): Promise<void> {
+    const res = await fetch(
+      `${this.url}/rest/v1/threads?id=eq.${encodeURIComponent(threadId)}`,
+      {
+        method: "PATCH",
+        headers: this.headers({ Prefer: "return=minimal" }),
+        body: JSON.stringify({ notes_last_updated_at: new Date().toISOString() }),
+      },
+    );
+    if (!res.ok) throw new Error(`thread markNotesUpdated failed: ${res.status} ${await res.text()}`);
+  }
 }

@@ -1,0 +1,19 @@
+{
+  "name": "@agent-mouth/agent-notes-updater",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "exports": { ".": "./dist/index.js" },
+  "files": ["dist/"],
+  "scripts": { "build": "tsc", "test": "vitest run" },
+  "dependencies": {
+    "@agent-mouth/core": "workspace:*",
+    "@agent-mouth/agent-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.0",
+    "typescript": "5.5.4",
+    "vitest": "^2.1.0"
+  }
+}

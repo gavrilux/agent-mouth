@@ -6,6 +6,7 @@ export const WorkspaceSchema = z.object({
   name: z.string().min(1),
   owner_user_id: z.string().uuid().nullable(),
   plan: z.string().default("self-host"),
+  daily_budget_usd_cap: z.number().nonnegative().default(1),
   created_at: z.string().datetime({ offset: true }),
 });
 export type Workspace = z.infer<typeof WorkspaceSchema>;
@@ -53,6 +54,12 @@ export const PolicySchema = z.object({
   system_prompt: z.string().default(""),
   rules: z.record(z.unknown()).default({}),
   priority: z.number().int().default(0),
+  model_id: z.string().nullable().default(null),
+  rate_limit_per_hour: z.number().int().nonnegative().default(10),
+  max_tokens_out: z.number().int().positive().default(8000),
+  max_tool_calls: z.number().int().nonnegative().default(10),
+  forbidden_topics_regex: z.array(z.string()).default([]),
+  escalate_triggers_regex: z.array(z.string()).default([]),
   created_at: z.string().datetime({ offset: true }),
 });
 export type Policy = z.infer<typeof PolicySchema>;
@@ -66,6 +73,7 @@ export const ThreadSchema = z.object({
   related_thread_ids: z.array(z.string().uuid()).default([]),
   last_message_at: z.string().datetime({ offset: true }).nullable(),
   closed: z.boolean().default(false),
+  notes_last_updated_at: z.string().datetime({ offset: true }).nullable().default(null),
   created_at: z.string().datetime({ offset: true }),
 });
 export type Thread = z.infer<typeof ThreadSchema>;

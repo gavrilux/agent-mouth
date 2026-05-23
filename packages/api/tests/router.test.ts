@@ -1,6 +1,6 @@
 // packages/api/tests/router.test.ts
-import { describe, it, expect, vi } from "vitest";
-import { processInbound, type RouterDeps } from "../src/router.js";
+import { describe, expect, it, vi } from "vitest";
+import { type RouterDeps, processInbound } from "../src/router.js";
 
 const WS = "11111111-1111-1111-1111-111111111111";
 const CONTACT = "00000000-0000-0000-0000-000000000001";
@@ -30,30 +30,70 @@ function makeDeps(overrides: Partial<RouterDeps> = {}): RouterDeps {
     bridgeForwardUrl: "https://lab.example/webhook",
     identityResolver: {
       resolveOrCreate: vi.fn().mockResolvedValue({
-        contact: { id: CONTACT, workspace_id: WS, display_name: "Gavrilo", notes: "", created_at: "2026-05-20T00:00:00Z" },
-        channel: { id: CHAN, workspace_id: WS, type: "telegram", config: {}, status: "active", created_at: "2026-05-20T00:00:00Z" },
-        channel_identity: { id: IDENT, contact_id: CONTACT, channel_id: CHAN, identifier: "987654321", verified: false },
+        contact: {
+          id: CONTACT,
+          workspace_id: WS,
+          display_name: "Gavrilo",
+          notes: "",
+          created_at: "2026-05-20T00:00:00Z",
+        },
+        channel: {
+          id: CHAN,
+          workspace_id: WS,
+          type: "telegram",
+          config: {},
+          status: "active",
+          created_at: "2026-05-20T00:00:00Z",
+        },
+        channel_identity: {
+          id: IDENT,
+          contact_id: CONTACT,
+          channel_id: CHAN,
+          identifier: "987654321",
+          verified: false,
+        },
         created: false,
       }),
     },
     threadStore: {
       resolveOrCreate: vi.fn().mockResolvedValue({
-        id: THREAD, workspace_id: WS, contact_id: CONTACT, channel_id: CHAN,
-        external_thread_id: "987654321", related_thread_ids: [], last_message_at: null, closed: false,
+        id: THREAD,
+        workspace_id: WS,
+        contact_id: CONTACT,
+        channel_id: CHAN,
+        external_thread_id: "987654321",
+        related_thread_ids: [],
+        last_message_at: null,
+        closed: false,
         created_at: "2026-05-20T00:00:00Z",
       }),
     },
     policyEngine: {
       evaluate: vi.fn().mockResolvedValue({
-        id: "33333333-3333-3333-3333-333333333333", workspace_id: WS, contact_id: null, channel_type: null,
-        policy: "silent", system_prompt: "", rules: {}, priority: 0, created_at: "2026-05-20T00:00:00Z",
+        id: "33333333-3333-3333-3333-333333333333",
+        workspace_id: WS,
+        contact_id: null,
+        channel_type: null,
+        policy: "silent",
+        system_prompt: "",
+        rules: {},
+        priority: 0,
+        created_at: "2026-05-20T00:00:00Z",
       }),
     },
     messageStore: {
       insert: vi.fn().mockResolvedValue({
-        id: M1, thread_id: THREAD, channel_id: CHAN, channel_identity_id: IDENT,
-        direction: "inbound", content: "hola", attachments: [], raw_payload: { update_id: 1 },
-        external_message_id: "42", sent_by: null, created_at: "2026-05-20T00:00:00Z",
+        id: M1,
+        thread_id: THREAD,
+        channel_id: CHAN,
+        channel_identity_id: IDENT,
+        direction: "inbound",
+        content: "hola",
+        attachments: [],
+        raw_payload: { update_id: 1 },
+        external_message_id: "42",
+        sent_by: null,
+        created_at: "2026-05-20T00:00:00Z",
       }),
       listRecent: vi.fn(),
       waitForNew: vi.fn(),
@@ -75,6 +115,35 @@ describe("processInbound", () => {
     expect(deps.forwarder).not.toHaveBeenCalled();
   });
 
+  it("persisted result includes all fields needed by the worker", async () => {
+    const deps = makeDeps();
+    const out = await processInbound(baseInbound, deps);
+    expect(out).toMatchObject({
+      kind: "persisted",
+      messageId: M1,
+      contactId: CONTACT,
+      threadId: THREAD,
+      channelType: "telegram",
+      channelId: CHAN,
+      channelIdentityId: IDENT,
+      messageContent: "hola",
+    });
+  });
+
+  it("persisted result with policy=silent still returns all fields", async () => {
+    // policy=silent → router returns the shape; enqueue decision is caller's responsibility
+    const deps = makeDeps();
+    const out = await processInbound(baseInbound, deps);
+    if (out.kind !== "persisted") throw new Error("expected persisted");
+    expect(out.policy).toBe("silent");
+    expect(out.contactId).toBe(CONTACT);
+    expect(out.threadId).toBe(THREAD);
+    expect(out.channelType).toBe("telegram");
+    expect(out.channelId).toBe(CHAN);
+    expect(out.channelIdentityId).toBe(IDENT);
+    expect(out.messageContent).toBe("hola");
+  });
+
   it("forwards Cuina LAB group to bridge without persisting", async () => {
     const deps = makeDeps();
     const out = await processInbound(
@@ -89,10 +158,7 @@ describe("processInbound", () => {
 
   it("returns kind=forwarded with ok=false when forwarder fails (still ACKs Telegram)", async () => {
     const deps = makeDeps({ forwarder: vi.fn().mockResolvedValue(false) });
-    const out = await processInbound(
-      { ...baseInbound, external_thread_id: "-5286864201" },
-      deps,
-    );
+    const out = await processInbound({ ...baseInbound, external_thread_id: "-5286864201" }, deps);
     expect(out).toEqual({ kind: "forwarded", url: "https://lab.example/webhook", ok: false });
   });
 });

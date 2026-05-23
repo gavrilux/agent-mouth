@@ -1,20 +1,26 @@
-import { createServer, IncomingMessage, ServerResponse } from "node:http";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
+import { InboundMessageSchema } from "@agent-mouth/core";
 import {
-  SupabaseOffsetStore,
+  SupabaseContactStore,
   SupabaseIdentityResolver,
+  SupabaseMessageStore,
+  SupabaseOffsetStore,
   SupabasePolicyEngine,
   SupabaseThreadStore,
-  SupabaseMessageStore,
   SupabaseWorkspaceStore,
 } from "@agent-mouth/storage-supabase";
-import { TelegramTransport, telegramUpdateToInbound, type TelegramConfig } from "@agent-mouth/transport-telegram";
-import { InboundMessageSchema } from "@agent-mouth/core";
+import {
+  type TelegramConfig,
+  TelegramTransport,
+  telegramUpdateToInbound,
+} from "@agent-mouth/transport-telegram";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { loadConfigFromEnv } from "../config.js";
-import { logger } from "../logger.js";
-import { buildServer } from "../server.js";
-import { processInbound, type RouterDeps } from "../router.js";
 import { forwardToBridge } from "../forwarders/bridge.js";
+import { logger } from "../logger.js";
+import { type RouterDeps, processInbound } from "../router.js";
+import { buildServer } from "../server.js";
+import { startWorker } from "../worker.js";
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -62,11 +68,14 @@ export async function serveHttp(): Promise<void> {
   const policyEngine = new SupabasePolicyEngine(supabaseUrl, supabaseKey);
   const threadStore = new SupabaseThreadStore(supabaseUrl, supabaseKey);
   const messageStore = new SupabaseMessageStore(supabaseUrl, supabaseKey);
+  const contactStore = new SupabaseContactStore(supabaseUrl, supabaseKey);
 
   const bridgeForwardUrl = process.env.BRIDGE_FORWARD_URL ?? null;
   const bridgeForwardChats = new Set(
     (process.env.BRIDGE_FORWARD_CHATS ?? "")
-      .split(",").map((s) => s.trim()).filter(Boolean),
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
   );
   const bridgeForwardSecret = process.env.BRIDGE_FORWARD_SECRET ?? undefined;
 
@@ -90,9 +99,48 @@ export async function serveHttp(): Promise<void> {
     offsetStore,
   } as TelegramConfig);
 
+  const databaseUrl = process.env.DATABASE_URL;
+  const apiKeys: Record<string, string | undefined> = {
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
+  };
+  const defaultModel = process.env.DEFAULT_AGENT_MODEL ?? "claude-sonnet-4-6";
+  let workerCtl: Awaited<ReturnType<typeof startWorker>> | null = null;
+
+  // Worker boots only if DATABASE_URL is set AND at least one API key is present.
+  // resolveRuntime will throw at startup if the configured model has no key.
+  const hasAnyKey = Object.values(apiKeys).some(Boolean);
+  if (databaseUrl && hasAnyKey) {
+    try {
+      workerCtl = await startWorker({
+        databaseUrl,
+        supabaseUrl,
+        supabaseAnonKey: supabaseKey,
+        apiKeys,
+        defaultModel,
+        notesModel: process.env.NOTES_UPDATER_MODEL ?? "claude-haiku-4-5-20251001",
+        enableNotesUpdater: process.env.ENABLE_NOTES_UPDATER === "true",
+        contactStore,
+        messageStore,
+        threadStore,
+        workspaceStore,
+        policyEngine,
+        transport: telegramTransport,
+      });
+      logger.info({ defaultModel }, "pg-boss worker started");
+    } catch (err) {
+      logger.error({ err }, "pg-boss worker failed to start — continuing in Phase 1a mode");
+      workerCtl = null;
+    }
+  } else {
+    logger.warn("DATABASE_URL or any LLM API key not set — worker not started");
+  }
+
   const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     try {
-      const url = new URL(req.url ?? "/", `http://localhost`);
+      const url = new URL(req.url ?? "/", "http://localhost");
 
       if (url.pathname === "/health" && req.method === "GET") {
         sendJson(res, 200, { ok: true, handle: config.telegram!.handle });
@@ -101,7 +149,9 @@ export async function serveHttp(): Promise<void> {
 
       if (url.pathname === "/telegram-webhook" && req.method === "POST") {
         const body = await readJsonBody(req);
-        const inbound = telegramUpdateToInbound(body as Parameters<typeof telegramUpdateToInbound>[0]);
+        const inbound = telegramUpdateToInbound(
+          body as Parameters<typeof telegramUpdateToInbound>[0],
+        );
         if (!inbound) {
           sendJson(res, 200, { ok: true, skipped: true });
           return;
@@ -115,6 +165,25 @@ export async function serveHttp(): Promise<void> {
         const result = await processInbound(parsed.data, routerDeps);
         logger.info({ result }, "webhook processed");
         sendJson(res, 200, { ok: true, result });
+        if (result.kind === "persisted" && result.policy !== "silent" && workerCtl) {
+          workerCtl.queue
+            .send(
+              "agent.respond",
+              {
+                workspaceId: routerDeps.workspaceId,
+                contactId: result.contactId,
+                threadId: result.threadId,
+                channelType: result.channelType,
+                channelId: result.channelId,
+                channelIdentityId: result.channelIdentityId,
+                externalChatId: result.externalChatId,
+                messageId: result.messageId,
+                messageContent: result.messageContent,
+              },
+              { singletonKey: result.messageId },
+            )
+            .catch((err) => logger.error({ err }, "enqueue agent.respond failed"));
+        }
         return;
       }
 
@@ -162,7 +231,10 @@ export async function serveHttp(): Promise<void> {
   for (const sig of ["SIGTERM", "SIGINT"] as const) {
     process.on(sig, () => {
       logger.info({ signal: sig }, "shutting down");
-      httpServer.close(() => process.exit(0));
+      httpServer.close(async () => {
+        if (workerCtl) await workerCtl.stop();
+        process.exit(0);
+      });
     });
   }
 }

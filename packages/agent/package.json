@@ -6,12 +6,12 @@
   "main": "./dist/index.js",
   "exports": { ".": "./dist/index.js" },
   "files": ["dist/"],
-  "scripts": {
-    "build": "tsc",
-    "test": "vitest run"
-  },
+  "scripts": { "build": "tsc", "test": "vitest run" },
   "dependencies": {
-    "@agent-mouth/core": "workspace:*"
+    "@agent-mouth/core": "workspace:*",
+    "@agent-mouth/agent-runtime": "workspace:*",
+    "@agent-mouth/agent-memory": "workspace:*",
+    "@agent-mouth/agent-guardrails": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.16.0",
