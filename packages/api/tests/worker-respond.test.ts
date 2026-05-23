@@ -66,6 +66,7 @@ const basePolicy: Policy = {
   created_at: "2026-05-20T00:00:00Z",
 };
 
+const EXT_CHAT = "987654321";
 const baseJobData: RespondJobData = {
   workspaceId: WS,
   contactId: CONTACT,
@@ -73,6 +74,7 @@ const baseJobData: RespondJobData = {
   channelType: "telegram",
   channelId: CHAN,
   channelIdentityId: null,
+  externalChatId: EXT_CHAT,
   messageId: MSG_IN,
   messageContent: "hola",
 };
@@ -209,7 +211,7 @@ describe("handleRespondJob — ready_to_send (auto policy)", () => {
     await handleRespondJob(makeData(), ctx);
 
     expect(ctx.mocks.transport.send).toHaveBeenCalledOnce();
-    expect(ctx.mocks.transport.send).toHaveBeenCalledWith({ to: CHAN, body: "hola respuesta" });
+    expect(ctx.mocks.transport.send).toHaveBeenCalledWith({ to: EXT_CHAT, body: "hola respuesta" });
 
     expect(ctx.mocks.messageStore.insert).toHaveBeenCalledOnce();
     const insertArg = ctx.mocks.messageStore.insert.mock.calls[0][0];

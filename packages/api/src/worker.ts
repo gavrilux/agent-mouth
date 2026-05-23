@@ -39,6 +39,8 @@ export interface RespondJobData {
   channelType: "telegram" | "email" | "whatsapp" | "discord" | "slack";
   channelId: string;
   channelIdentityId: string | null;
+  /** External chat id (e.g. Telegram chat_id) — what transport.send needs as destination. */
+  externalChatId: string;
   messageId: string;
   messageContent: string;
 }
@@ -135,7 +137,7 @@ export async function handleRespondJob(
 
   if (out.decision === "ready_to_send") {
     const sent = await ctx.deps.transport.send({
-      to: data.channelId,
+      to: data.externalChatId,
       body: out.response.body,
     });
     await ctx.deps.messageStore.insert({

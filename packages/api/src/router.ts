@@ -31,6 +31,7 @@ export type RouterResult =
       channelType: ChannelType;
       channelId: string;
       channelIdentityId: string;
+      externalChatId: string;
       messageContent: string;
     }
   | { kind: "skipped"; reason: string };
@@ -82,6 +83,7 @@ export async function processInbound(msg: InboundMessage, deps: RouterDeps): Pro
     channelType: msg.channel_type,
     channelId: ident.channel.id,
     channelIdentityId: ident.channel_identity.id,
+    externalChatId: msg.external_thread_id,
     messageContent: msg.content,
   };
 }

@@ -74,8 +74,15 @@ export class TelegramTransport implements Transport {
 
   async send(opts: SendOptions): Promise<SentMessage> {
     if (!this.bot) throw new Error("Transport not initialized");
-    const text = opts.to && opts.to !== "broadcast" ? `@${opts.to} ${opts.body}` : opts.body;
-    const sent = await this.bot.api.sendMessage(this.chatId, text, {
+    // If `to` looks like a numeric chat id (positive for private, negative for groups),
+    // send directly to that chat (1-on-1 reply path used by the agent worker).
+    // Otherwise treat it as a username/handle and mention it in the configured chat (Phase 0 group behavior).
+    const isNumericChatId = !!opts.to && /^-?\d+$/.test(opts.to);
+    const targetChat = isNumericChatId ? opts.to! : this.chatId;
+    const text = !isNumericChatId && opts.to && opts.to !== "broadcast"
+      ? `@${opts.to} ${opts.body}`
+      : opts.body;
+    const sent = await this.bot.api.sendMessage(targetChat, text, {
       reply_parameters: opts.reply_to_message_id
         ? { message_id: Number(opts.reply_to_message_id) }
         : undefined,

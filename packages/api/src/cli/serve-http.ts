@@ -176,6 +176,7 @@ export async function serveHttp(): Promise<void> {
                 channelType: result.channelType,
                 channelId: result.channelId,
                 channelIdentityId: result.channelIdentityId,
+                externalChatId: result.externalChatId,
                 messageId: result.messageId,
                 messageContent: result.messageContent,
               },
