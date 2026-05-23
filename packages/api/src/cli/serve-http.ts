@@ -1,22 +1,26 @@
-import { createServer, IncomingMessage, ServerResponse } from "node:http";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
+import { InboundMessageSchema } from "@agent-mouth/core";
 import {
-  SupabaseOffsetStore,
+  SupabaseContactStore,
   SupabaseIdentityResolver,
+  SupabaseMessageStore,
+  SupabaseOffsetStore,
   SupabasePolicyEngine,
   SupabaseThreadStore,
-  SupabaseMessageStore,
   SupabaseWorkspaceStore,
-  SupabaseContactStore,
 } from "@agent-mouth/storage-supabase";
-import { startWorker, type RespondJobData } from "../worker.js";
-import { TelegramTransport, telegramUpdateToInbound, type TelegramConfig } from "@agent-mouth/transport-telegram";
-import { InboundMessageSchema } from "@agent-mouth/core";
+import {
+  type TelegramConfig,
+  TelegramTransport,
+  telegramUpdateToInbound,
+} from "@agent-mouth/transport-telegram";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { loadConfigFromEnv } from "../config.js";
-import { logger } from "../logger.js";
-import { buildServer } from "../server.js";
-import { processInbound, type RouterDeps } from "../router.js";
 import { forwardToBridge } from "../forwarders/bridge.js";
+import { logger } from "../logger.js";
+import { type RouterDeps, processInbound } from "../router.js";
+import { buildServer } from "../server.js";
+import { startWorker } from "../worker.js";
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -69,7 +73,9 @@ export async function serveHttp(): Promise<void> {
   const bridgeForwardUrl = process.env.BRIDGE_FORWARD_URL ?? null;
   const bridgeForwardChats = new Set(
     (process.env.BRIDGE_FORWARD_CHATS ?? "")
-      .split(",").map((s) => s.trim()).filter(Boolean),
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
   );
   const bridgeForwardSecret = process.env.BRIDGE_FORWARD_SECRET ?? undefined;
 
@@ -120,7 +126,7 @@ export async function serveHttp(): Promise<void> {
 
   const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     try {
-      const url = new URL(req.url ?? "/", `http://localhost`);
+      const url = new URL(req.url ?? "/", "http://localhost");
 
       if (url.pathname === "/health" && req.method === "GET") {
         sendJson(res, 200, { ok: true, handle: config.telegram!.handle });
@@ -129,7 +135,9 @@ export async function serveHttp(): Promise<void> {
 
       if (url.pathname === "/telegram-webhook" && req.method === "POST") {
         const body = await readJsonBody(req);
-        const inbound = telegramUpdateToInbound(body as Parameters<typeof telegramUpdateToInbound>[0]);
+        const inbound = telegramUpdateToInbound(
+          body as Parameters<typeof telegramUpdateToInbound>[0],
+        );
         if (!inbound) {
           sendJson(res, 200, { ok: true, skipped: true });
           return;
@@ -141,24 +149,26 @@ export async function serveHttp(): Promise<void> {
           return;
         }
         const result = await processInbound(parsed.data, routerDeps);
-        if (result.kind === "persisted" && result.policy !== "silent" && workerCtl) {
-          await workerCtl.queue.send(
-            "agent.respond",
-            {
-              workspaceId: routerDeps.workspaceId,
-              contactId: result.contactId,
-              threadId: result.threadId,
-              channelType: result.channelType as RespondJobData["channelType"],
-              channelId: result.channelId,
-              channelIdentityId: result.channelIdentityId,
-              messageId: result.messageId,
-              messageContent: result.messageContent,
-            },
-            { singletonKey: result.messageId },
-          );
-        }
         logger.info({ result }, "webhook processed");
         sendJson(res, 200, { ok: true, result });
+        if (result.kind === "persisted" && result.policy !== "silent" && workerCtl) {
+          workerCtl.queue
+            .send(
+              "agent.respond",
+              {
+                workspaceId: routerDeps.workspaceId,
+                contactId: result.contactId,
+                threadId: result.threadId,
+                channelType: result.channelType,
+                channelId: result.channelId,
+                channelIdentityId: result.channelIdentityId,
+                messageId: result.messageId,
+                messageContent: result.messageContent,
+              },
+              { singletonKey: result.messageId },
+            )
+            .catch((err) => logger.error({ err }, "enqueue agent.respond failed"));
+        }
         return;
       }
 

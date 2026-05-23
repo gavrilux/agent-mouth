@@ -1,6 +1,12 @@
 // packages/api/src/router.ts
 import type {
-  InboundMessage, IdentityResolver, PolicyEngine, ThreadStore, MessageStore, PolicyAction,
+  ChannelType,
+  IdentityResolver,
+  InboundMessage,
+  MessageStore,
+  PolicyAction,
+  PolicyEngine,
+  ThreadStore,
 } from "@agent-mouth/core";
 
 export interface RouterDeps {
@@ -16,7 +22,17 @@ export interface RouterDeps {
 
 export type RouterResult =
   | { kind: "forwarded"; url: string; ok: boolean }
-  | { kind: "persisted"; policy: PolicyAction; messageId: string; contactId: string; threadId: string; channelType: string; channelId: string; channelIdentityId: string; messageContent: string }
+  | {
+      kind: "persisted";
+      policy: PolicyAction;
+      messageId: string;
+      contactId: string;
+      threadId: string;
+      channelType: ChannelType;
+      channelId: string;
+      channelIdentityId: string;
+      messageContent: string;
+    }
   | { kind: "skipped"; reason: string };
 
 export async function processInbound(msg: InboundMessage, deps: RouterDeps): Promise<RouterResult> {
