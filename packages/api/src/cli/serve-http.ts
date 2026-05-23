@@ -9,7 +9,7 @@ import {
   SupabaseWorkspaceStore,
   SupabaseContactStore,
 } from "@agent-mouth/storage-supabase";
-import { startWorker } from "../worker.js";
+import { startWorker, type RespondJobData } from "../worker.js";
 import { TelegramTransport, telegramUpdateToInbound, type TelegramConfig } from "@agent-mouth/transport-telegram";
 import { InboundMessageSchema } from "@agent-mouth/core";
 import { loadConfigFromEnv } from "../config.js";
@@ -141,6 +141,22 @@ export async function serveHttp(): Promise<void> {
           return;
         }
         const result = await processInbound(parsed.data, routerDeps);
+        if (result.kind === "persisted" && result.policy !== "silent" && workerCtl) {
+          await workerCtl.queue.send(
+            "agent.respond",
+            {
+              workspaceId: routerDeps.workspaceId,
+              contactId: result.contactId,
+              threadId: result.threadId,
+              channelType: result.channelType as RespondJobData["channelType"],
+              channelId: result.channelId,
+              channelIdentityId: result.channelIdentityId,
+              messageId: result.messageId,
+              messageContent: result.messageContent,
+            },
+            { singletonKey: result.messageId },
+          );
+        }
         logger.info({ result }, "webhook processed");
         sendJson(res, 200, { ok: true, result });
         return;

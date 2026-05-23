@@ -75,6 +75,35 @@ describe("processInbound", () => {
     expect(deps.forwarder).not.toHaveBeenCalled();
   });
 
+  it("persisted result includes all fields needed by the worker", async () => {
+    const deps = makeDeps();
+    const out = await processInbound(baseInbound, deps);
+    expect(out).toMatchObject({
+      kind: "persisted",
+      messageId: M1,
+      contactId: CONTACT,
+      threadId: THREAD,
+      channelType: "telegram",
+      channelId: CHAN,
+      channelIdentityId: IDENT,
+      messageContent: "hola",
+    });
+  });
+
+  it("persisted result with policy=silent still returns all fields", async () => {
+    // policy=silent → router returns the shape; enqueue decision is caller's responsibility
+    const deps = makeDeps();
+    const out = await processInbound(baseInbound, deps);
+    if (out.kind !== "persisted") throw new Error("expected persisted");
+    expect(out.policy).toBe("silent");
+    expect(out.contactId).toBe(CONTACT);
+    expect(out.threadId).toBe(THREAD);
+    expect(out.channelType).toBe("telegram");
+    expect(out.channelId).toBe(CHAN);
+    expect(out.channelIdentityId).toBe(IDENT);
+    expect(out.messageContent).toBe("hola");
+  });
+
   it("forwards Cuina LAB group to bridge without persisting", async () => {
     const deps = makeDeps();
     const out = await processInbound(

@@ -16,7 +16,7 @@ export interface RouterDeps {
 
 export type RouterResult =
   | { kind: "forwarded"; url: string; ok: boolean }
-  | { kind: "persisted"; policy: PolicyAction; messageId: string }
+  | { kind: "persisted"; policy: PolicyAction; messageId: string; contactId: string; threadId: string; channelType: string; channelId: string; channelIdentityId: string; messageContent: string }
   | { kind: "skipped"; reason: string };
 
 export async function processInbound(msg: InboundMessage, deps: RouterDeps): Promise<RouterResult> {
@@ -57,5 +57,15 @@ export async function processInbound(msg: InboundMessage, deps: RouterDeps): Pro
     sentBy: null,
   });
 
-  return { kind: "persisted", policy: policy.policy, messageId: persisted.id };
+  return {
+    kind: "persisted",
+    policy: policy.policy,
+    messageId: persisted.id,
+    contactId: ident.contact.id,
+    threadId: thread.id,
+    channelType: msg.channel_type,
+    channelId: ident.channel.id,
+    channelIdentityId: ident.channel_identity.id,
+    messageContent: msg.content,
+  };
 }
