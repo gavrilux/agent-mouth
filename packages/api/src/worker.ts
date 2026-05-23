@@ -105,7 +105,7 @@ export async function startWorker(
   };
 }
 
-async function handleRespondJob(
+export async function handleRespondJob(
   data: RespondJobData,
   ctx: {
     agent: Agent;
