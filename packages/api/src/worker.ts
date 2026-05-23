@@ -1,6 +1,6 @@
 import { Agent } from "@agent-mouth/agent";
 import { NotesUpdater } from "@agent-mouth/agent-notes-updater";
-import { type AgentRuntime, ClaudeRuntime, GeminiRuntime } from "@agent-mouth/agent-runtime";
+import { resolveRuntime } from "@agent-mouth/agent-runtime";
 import type { Transport } from "@agent-mouth/core";
 import type {
   ContactStore,
@@ -16,8 +16,11 @@ export interface WorkerDeps {
   databaseUrl: string;
   supabaseUrl: string;
   supabaseAnonKey: string;
-  anthropicApiKey: string;
-  googleApiKey?: string;
+  /**
+   * API keys keyed by env-var name (e.g. { ANTHROPIC_API_KEY: "sk-...", GOOGLE_API_KEY: "AIza..." }).
+   * The runtime registry looks up the right key per model prefix.
+   */
+  apiKeys: Record<string, string | undefined>;
   defaultModel: string;
   notesModel: string;
   enableNotesUpdater: boolean;
@@ -27,20 +30,6 @@ export interface WorkerDeps {
   workspaceStore: WorkspaceStore;
   policyEngine: PolicyEngine;
   transport: Transport;
-}
-
-async function buildRuntime(model: string, deps: WorkerDeps): Promise<AgentRuntime> {
-  if (model.startsWith("gemini-")) {
-    if (!deps.googleApiKey) {
-      throw new Error(`Model "${model}" requires GOOGLE_API_KEY but it is not set`);
-    }
-    const r = new GeminiRuntime();
-    await r.initialize({ apiKey: deps.googleApiKey, defaultModel: model });
-    return r;
-  }
-  const r = new ClaudeRuntime();
-  await r.initialize({ apiKey: deps.anthropicApiKey, defaultModel: model });
-  return r;
 }
 
 export interface RespondJobData {
@@ -75,8 +64,8 @@ export async function startWorker(
     anonKey: deps.supabaseAnonKey,
   });
 
-  const respondRuntime = await buildRuntime(deps.defaultModel, deps);
-  const notesRuntime = await buildRuntime(deps.notesModel, deps);
+  const respondRuntime = await resolveRuntime(deps.defaultModel, deps.apiKeys);
+  const notesRuntime = await resolveRuntime(deps.notesModel, deps.apiKeys);
 
   const agent = new Agent({
     runtime: respondRuntime,

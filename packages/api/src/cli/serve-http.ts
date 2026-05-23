@@ -100,18 +100,25 @@ export async function serveHttp(): Promise<void> {
   } as TelegramConfig);
 
   const databaseUrl = process.env.DATABASE_URL;
-  const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKeys: Record<string, string | undefined> = {
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
+  };
+  const defaultModel = process.env.DEFAULT_AGENT_MODEL ?? "claude-sonnet-4-6";
   let workerCtl: Awaited<ReturnType<typeof startWorker>> | null = null;
 
-  const googleApiKey = process.env.GOOGLE_API_KEY;
-  if (databaseUrl && anthropicApiKey) {
+  // Worker boots only if DATABASE_URL is set AND at least one API key is present.
+  // resolveRuntime will throw at startup if the configured model has no key.
+  const hasAnyKey = Object.values(apiKeys).some(Boolean);
+  if (databaseUrl && hasAnyKey) {
     workerCtl = await startWorker({
       databaseUrl,
       supabaseUrl,
       supabaseAnonKey: supabaseKey,
-      anthropicApiKey,
-      googleApiKey,
-      defaultModel: process.env.DEFAULT_AGENT_MODEL ?? "claude-sonnet-4-6",
+      apiKeys,
+      defaultModel,
       notesModel: process.env.NOTES_UPDATER_MODEL ?? "claude-haiku-4-5-20251001",
       enableNotesUpdater: process.env.ENABLE_NOTES_UPDATER === "true",
       contactStore,
@@ -121,9 +128,9 @@ export async function serveHttp(): Promise<void> {
       policyEngine,
       transport: telegramTransport,
     });
-    logger.info("pg-boss worker started");
+    logger.info({ defaultModel }, "pg-boss worker started");
   } else {
-    logger.warn("DATABASE_URL or ANTHROPIC_API_KEY not set — worker not started");
+    logger.warn("DATABASE_URL or any LLM API key not set — worker not started");
   }
 
   const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
