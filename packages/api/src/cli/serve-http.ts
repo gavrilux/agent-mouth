@@ -113,22 +113,27 @@ export async function serveHttp(): Promise<void> {
   // resolveRuntime will throw at startup if the configured model has no key.
   const hasAnyKey = Object.values(apiKeys).some(Boolean);
   if (databaseUrl && hasAnyKey) {
-    workerCtl = await startWorker({
-      databaseUrl,
-      supabaseUrl,
-      supabaseAnonKey: supabaseKey,
-      apiKeys,
-      defaultModel,
-      notesModel: process.env.NOTES_UPDATER_MODEL ?? "claude-haiku-4-5-20251001",
-      enableNotesUpdater: process.env.ENABLE_NOTES_UPDATER === "true",
-      contactStore,
-      messageStore,
-      threadStore,
-      workspaceStore,
-      policyEngine,
-      transport: telegramTransport,
-    });
-    logger.info({ defaultModel }, "pg-boss worker started");
+    try {
+      workerCtl = await startWorker({
+        databaseUrl,
+        supabaseUrl,
+        supabaseAnonKey: supabaseKey,
+        apiKeys,
+        defaultModel,
+        notesModel: process.env.NOTES_UPDATER_MODEL ?? "claude-haiku-4-5-20251001",
+        enableNotesUpdater: process.env.ENABLE_NOTES_UPDATER === "true",
+        contactStore,
+        messageStore,
+        threadStore,
+        workspaceStore,
+        policyEngine,
+        transport: telegramTransport,
+      });
+      logger.info({ defaultModel }, "pg-boss worker started");
+    } catch (err) {
+      logger.error({ err }, "pg-boss worker failed to start — continuing in Phase 1a mode");
+      workerCtl = null;
+    }
   } else {
     logger.warn("DATABASE_URL or any LLM API key not set — worker not started");
   }
