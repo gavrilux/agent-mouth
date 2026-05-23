@@ -9,6 +9,11 @@ primary_region = 'cdg'
 [build]
   dockerfile = 'Dockerfile'
 
+[env]
+  DEFAULT_AGENT_MODEL = "claude-sonnet-4-6"
+  NOTES_UPDATER_MODEL = "claude-haiku-4-5-20251001"
+  ENABLE_NOTES_UPDATER = "false"
+
 [http_service]
   internal_port = 3000
   force_https = true

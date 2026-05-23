@@ -15,6 +15,11 @@ COPY packages/storage-sqlite/package.json packages/storage-sqlite/tsconfig.json 
 COPY packages/storage-postgres/package.json packages/storage-postgres/tsconfig.json packages/storage-postgres/
 COPY packages/transport-telegram/package.json packages/transport-telegram/tsconfig.json packages/transport-telegram/
 COPY packages/agent/package.json packages/agent/tsconfig.json packages/agent/
+COPY packages/agent-runtime/package.json packages/agent-runtime/tsconfig.json packages/agent-runtime/
+COPY packages/agent-memory/package.json packages/agent-memory/tsconfig.json packages/agent-memory/
+COPY packages/agent-guardrails/package.json packages/agent-guardrails/tsconfig.json packages/agent-guardrails/
+COPY packages/agent-notes-updater/package.json packages/agent-notes-updater/tsconfig.json packages/agent-notes-updater/
+COPY packages/queue-pgboss/package.json packages/queue-pgboss/tsconfig.json packages/queue-pgboss/
 COPY packages/api/package.json packages/api/tsconfig.json packages/api/
 COPY apps/cli/package.json apps/cli/tsconfig.json apps/cli/
 
@@ -28,6 +33,11 @@ COPY packages/storage-sqlite/src packages/storage-sqlite/src
 COPY packages/storage-postgres/src packages/storage-postgres/src
 COPY packages/transport-telegram/src packages/transport-telegram/src
 COPY packages/agent/src packages/agent/src
+COPY packages/agent-runtime/src packages/agent-runtime/src
+COPY packages/agent-memory/src packages/agent-memory/src
+COPY packages/agent-guardrails/src packages/agent-guardrails/src
+COPY packages/agent-notes-updater/src packages/agent-notes-updater/src
+COPY packages/queue-pgboss/src packages/queue-pgboss/src
 COPY packages/api/src packages/api/src
 COPY apps/cli/src apps/cli/src
 RUN pnpm -r build
