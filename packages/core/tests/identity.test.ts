@@ -60,6 +60,6 @@ describe("identity schemas", () => {
       external_thread_id: "-5286864201", related_thread_ids: [],
       last_message_at: null, closed: false, created_at: "2026-05-20T00:00:00Z",
     };
-    expect(ThreadSchema.parse(t)).toEqual(t);
+    expect(ThreadSchema.parse(t)).toEqual({ ...t, notes_last_updated_at: null });
   });
 });
