@@ -1,6 +1,6 @@
 import { Agent } from "@agent-mouth/agent";
 import { NotesUpdater } from "@agent-mouth/agent-notes-updater";
-import { ClaudeRuntime } from "@agent-mouth/agent-runtime";
+import { type AgentRuntime, ClaudeRuntime, GeminiRuntime } from "@agent-mouth/agent-runtime";
 import type { Transport } from "@agent-mouth/core";
 import type {
   ContactStore,
@@ -17,6 +17,7 @@ export interface WorkerDeps {
   supabaseUrl: string;
   supabaseAnonKey: string;
   anthropicApiKey: string;
+  googleApiKey?: string;
   defaultModel: string;
   notesModel: string;
   enableNotesUpdater: boolean;
@@ -26,6 +27,20 @@ export interface WorkerDeps {
   workspaceStore: WorkspaceStore;
   policyEngine: PolicyEngine;
   transport: Transport;
+}
+
+async function buildRuntime(model: string, deps: WorkerDeps): Promise<AgentRuntime> {
+  if (model.startsWith("gemini-")) {
+    if (!deps.googleApiKey) {
+      throw new Error(`Model "${model}" requires GOOGLE_API_KEY but it is not set`);
+    }
+    const r = new GeminiRuntime();
+    await r.initialize({ apiKey: deps.googleApiKey, defaultModel: model });
+    return r;
+  }
+  const r = new ClaudeRuntime();
+  await r.initialize({ apiKey: deps.anthropicApiKey, defaultModel: model });
+  return r;
 }
 
 export interface RespondJobData {
@@ -60,20 +75,11 @@ export async function startWorker(
     anonKey: deps.supabaseAnonKey,
   });
 
-  const sonnet = new ClaudeRuntime();
-  await sonnet.initialize({
-    apiKey: deps.anthropicApiKey,
-    defaultModel: deps.defaultModel,
-  });
-
-  const haiku = new ClaudeRuntime();
-  await haiku.initialize({
-    apiKey: deps.anthropicApiKey,
-    defaultModel: deps.notesModel,
-  });
+  const respondRuntime = await buildRuntime(deps.defaultModel, deps);
+  const notesRuntime = await buildRuntime(deps.notesModel, deps);
 
   const agent = new Agent({
-    runtime: sonnet,
+    runtime: respondRuntime,
     contactStore: deps.contactStore,
     messageStore: deps.messageStore,
     auditLogStore: auditStore,
@@ -81,7 +87,7 @@ export async function startWorker(
   });
 
   const notesUpdater = new NotesUpdater({
-    runtime: haiku,
+    runtime: notesRuntime,
     threads: deps.threadStore,
     messages: deps.messageStore,
     contacts: deps.contactStore,
@@ -102,8 +108,8 @@ export async function startWorker(
     queue,
     stop: async () => {
       await queue.stop();
-      await sonnet.dispose();
-      await haiku.dispose();
+      await respondRuntime.dispose();
+      await notesRuntime.dispose();
     },
   };
 }

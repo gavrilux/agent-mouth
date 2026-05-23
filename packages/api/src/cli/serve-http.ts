@@ -103,12 +103,14 @@ export async function serveHttp(): Promise<void> {
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
   let workerCtl: Awaited<ReturnType<typeof startWorker>> | null = null;
 
+  const googleApiKey = process.env.GOOGLE_API_KEY;
   if (databaseUrl && anthropicApiKey) {
     workerCtl = await startWorker({
       databaseUrl,
       supabaseUrl,
       supabaseAnonKey: supabaseKey,
       anthropicApiKey,
+      googleApiKey,
       defaultModel: process.env.DEFAULT_AGENT_MODEL ?? "claude-sonnet-4-6",
       notesModel: process.env.NOTES_UPDATER_MODEL ?? "claude-haiku-4-5-20251001",
       enableNotesUpdater: process.env.ENABLE_NOTES_UPDATER === "true",

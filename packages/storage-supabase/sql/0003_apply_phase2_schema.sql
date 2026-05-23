@@ -12,7 +12,7 @@ ALTER TABLE policies
 
 -- 2. Daily budget cap per workspace
 ALTER TABLE workspaces
-  ADD COLUMN daily_budget_usd_cap NUMERIC(10,4) NOT NULL DEFAULT 5.0;
+  ADD COLUMN daily_budget_usd_cap NUMERIC(10,4) NOT NULL DEFAULT 1.0;
 
 -- 3. Audit log columns dedicated for budget/rate queries
 ALTER TABLE audit_log

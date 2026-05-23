@@ -16,7 +16,7 @@ describe("identity schemas", () => {
 
   it("WorkspaceSchema parses valid row", () => {
     const w = { id: wsId, name: "default", owner_user_id: null, plan: "self-host", created_at: "2026-05-20T00:00:00Z" };
-    expect(WorkspaceSchema.parse(w)).toEqual({ ...w, daily_budget_usd_cap: 5 });
+    expect(WorkspaceSchema.parse(w)).toEqual({ ...w, daily_budget_usd_cap: 1 });
   });
 
   it("ContactSchema parses valid row", () => {

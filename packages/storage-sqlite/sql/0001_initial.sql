@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
   name TEXT NOT NULL,
   owner_user_id TEXT,
   plan TEXT NOT NULL DEFAULT 'self-host',
-  daily_budget_usd_cap REAL NOT NULL DEFAULT 5.0,
+  daily_budget_usd_cap REAL NOT NULL DEFAULT 1.0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
