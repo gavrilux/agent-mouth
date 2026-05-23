@@ -1,13 +1,16 @@
-import { PgBossQueue } from "@agent-mouth/queue-pgboss";
-import {
-  SupabaseAuditLogStore,
-  SupabaseDraftStore,
-} from "@agent-mouth/storage-supabase";
-import { ClaudeRuntime } from "@agent-mouth/agent-runtime";
 import { Agent } from "@agent-mouth/agent";
 import { NotesUpdater } from "@agent-mouth/agent-notes-updater";
+import { ClaudeRuntime } from "@agent-mouth/agent-runtime";
 import type { Transport } from "@agent-mouth/core";
-import type { ContactStore, MessageStore, ThreadStore, WorkspaceStore, PolicyEngine } from "@agent-mouth/core";
+import type {
+  ContactStore,
+  MessageStore,
+  PolicyEngine,
+  ThreadStore,
+  WorkspaceStore,
+} from "@agent-mouth/core";
+import { PgBossQueue } from "@agent-mouth/queue-pgboss";
+import { SupabaseAuditLogStore, SupabaseDraftStore } from "@agent-mouth/storage-supabase";
 
 export interface WorkerDeps {
   databaseUrl: string;

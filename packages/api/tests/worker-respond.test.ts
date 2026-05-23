@@ -1,15 +1,25 @@
 // packages/api/tests/worker-respond.test.ts
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { MockRuntime } from "@agent-mouth/agent-runtime";
 import { Agent } from "@agent-mouth/agent";
+import { MockRuntime } from "@agent-mouth/agent-runtime";
+import type {
+  AuditLogStore,
+  Contact,
+  ContactStore,
+  DraftStore,
+  MessageStore,
+  PersistedMessage,
+  Policy,
+  PolicyEngine,
+  ThreadStore,
+  Transport,
+  Workspace,
+  WorkspaceStore,
+} from "@agent-mouth/core";
+import type { PgBossQueue } from "@agent-mouth/queue-pgboss";
+import type { SupabaseAuditLogStore, SupabaseDraftStore } from "@agent-mouth/storage-supabase";
+import { describe, expect, it, vi } from "vitest";
 import { handleRespondJob } from "../src/worker.js";
 import type { RespondJobData, WorkerDeps } from "../src/worker.js";
-import type { PgBossQueue } from "@agent-mouth/queue-pgboss";
-import type {
-  SupabaseAuditLogStore,
-  SupabaseDraftStore,
-} from "@agent-mouth/storage-supabase";
-import type { Policy, Contact, Workspace, PersistedMessage } from "@agent-mouth/core";
 
 // ─── ID constants ────────────────────────────────────────────────────────────
 const WS = "11111111-1111-1111-1111-111111111111";
@@ -67,18 +77,25 @@ const baseJobData: RespondJobData = {
   messageContent: "hola",
 };
 
+function makeData(overrides?: Partial<RespondJobData>): RespondJobData {
+  return { ...baseJobData, ...overrides };
+}
+
 // ─── Mock factory ─────────────────────────────────────────────────────────────
-function makeCtx(overrides?: {
-  runtimeConfig?: { body?: string; costUsd?: number; shouldEscalate?: boolean };
-  policyOverride?: Partial<Policy>;
-  auditOverrides?: {
-    sumCostUsdSince?: () => Promise<number>;
-    countSentOrDraftSince?: () => Promise<number>;
-    findRespondedFor?: () => Promise<null>;
-  };
-  messageLastN?: PersistedMessage[];
-  draftFindPending?: null | object;
-}) {
+function makeCtx(
+  overrides?: {
+    runtimeConfig?: { body?: string; costUsd?: number; shouldEscalate?: boolean };
+    policyOverride?: Partial<Policy>;
+    auditOverrides?: {
+      sumCostUsdSince?: ReturnType<typeof vi.fn>;
+      countSentOrDraftSince?: ReturnType<typeof vi.fn>;
+      findRespondedFor?: ReturnType<typeof vi.fn>;
+    };
+    messageLastN?: PersistedMessage[];
+    draftFindPending?: null | object;
+  },
+  workerFlags?: { enableNotesUpdater?: boolean },
+) {
   const runtime = new MockRuntime();
   // MockRuntime.initialize is a no-op but must be called per contract
   void runtime.initialize(overrides?.runtimeConfig ?? { body: "hola respuesta", costUsd: 0.001 });
@@ -143,9 +160,7 @@ function makeCtx(overrides?: {
       approved_at: null,
       created_at: "2026-05-20T00:01:00Z",
     }),
-    findPendingByMessageId: vi
-      .fn()
-      .mockResolvedValue(overrides?.draftFindPending ?? null),
+    findPendingByMessageId: vi.fn().mockResolvedValue(overrides?.draftFindPending ?? null),
   };
 
   const queue = {
@@ -159,21 +174,21 @@ function makeCtx(overrides?: {
     anthropicApiKey: "unused-key",
     defaultModel: "claude-3-5-haiku-20241022",
     notesModel: "claude-3-5-haiku-20241022",
-    enableNotesUpdater: false,
-    contactStore: contactStore as any,
-    messageStore: messageStore as any,
-    threadStore: {} as any,
-    workspaceStore: workspaceStore as any,
-    policyEngine: policyEngine as any,
-    transport: transport as any,
+    enableNotesUpdater: workerFlags?.enableNotesUpdater ?? false,
+    contactStore: contactStore as unknown as ContactStore,
+    messageStore: messageStore as unknown as MessageStore,
+    threadStore: {} as unknown as ThreadStore,
+    workspaceStore: workspaceStore as unknown as WorkspaceStore,
+    policyEngine: policyEngine as unknown as PolicyEngine,
+    transport: transport as unknown as Transport,
   };
 
   const agent = new Agent({
     runtime,
-    contactStore: contactStore as any,
-    messageStore: messageStore as any,
-    auditLogStore: auditStore as any,
-    workspaceStore: workspaceStore as any,
+    contactStore: contactStore as unknown as ContactStore,
+    messageStore: messageStore as unknown as MessageStore,
+    auditLogStore: auditStore as unknown as AuditLogStore,
+    workspaceStore: workspaceStore as unknown as WorkspaceStore,
   });
 
   return {
@@ -191,19 +206,17 @@ function makeCtx(overrides?: {
 describe("handleRespondJob — ready_to_send (auto policy)", () => {
   it("calls transport.send, persists outbound message and writes audit with decision=sent", async () => {
     const ctx = makeCtx();
-    await handleRespondJob(baseJobData, ctx);
+    await handleRespondJob(makeData(), ctx);
 
     expect(ctx.mocks.transport.send).toHaveBeenCalledOnce();
-    expect(ctx.mocks.transport.send).toHaveBeenCalledWith({
-      to: CHAN,
-      body: expect.any(String),
-    });
+    expect(ctx.mocks.transport.send).toHaveBeenCalledWith({ to: CHAN, body: "hola respuesta" });
 
     expect(ctx.mocks.messageStore.insert).toHaveBeenCalledOnce();
     const insertArg = ctx.mocks.messageStore.insert.mock.calls[0][0];
     expect(insertArg.direction).toBe("outbound");
     expect(insertArg.sentBy).toBe("agent");
     expect(insertArg.threadId).toBe(THREAD);
+    expect(insertArg.content).toBe("hola respuesta");
 
     expect(ctx.mocks.auditStore.write).toHaveBeenCalledOnce();
     const auditArg = ctx.mocks.auditStore.write.mock.calls[0][0];
@@ -215,7 +228,7 @@ describe("handleRespondJob — ready_to_send (auto policy)", () => {
 describe("handleRespondJob — ready_to_draft (suggest policy)", () => {
   it("calls draftStore.insert, does NOT call transport.send, does NOT persist outbound message", async () => {
     const ctx = makeCtx({ policyOverride: { policy: "suggest" } });
-    await handleRespondJob(baseJobData, ctx);
+    await handleRespondJob(makeData(), ctx);
 
     expect(ctx.mocks.transport.send).not.toHaveBeenCalled();
     expect(ctx.mocks.messageStore.insert).not.toHaveBeenCalled();
@@ -242,7 +255,7 @@ describe("handleRespondJob — ready_to_draft (suggest policy)", () => {
       draftFindPending: existingDraft,
     });
 
-    await handleRespondJob(baseJobData, ctx);
+    await handleRespondJob(makeData(), ctx);
 
     // draft already exists → insert must NOT be called again
     expect(ctx.mocks.draftStore.insert).not.toHaveBeenCalled();
@@ -256,11 +269,11 @@ describe("handleRespondJob — budget blocked", () => {
     // sumCostUsdSince returns > cap so budget check fails
     const ctx = makeCtx({
       auditOverrides: {
-        sumCostUsdSince: vi.fn().mockResolvedValue(10) as any, // 10 > 5 cap
+        sumCostUsdSince: vi.fn().mockResolvedValue(10), // 10 > 5 cap
       },
     });
 
-    await handleRespondJob(baseJobData, ctx);
+    await handleRespondJob(makeData(), ctx);
 
     expect(ctx.mocks.transport.send).not.toHaveBeenCalled();
     expect(ctx.mocks.messageStore.insert).not.toHaveBeenCalled();
@@ -276,7 +289,7 @@ describe("handleRespondJob — forbidden topic", () => {
     const ctx = makeCtx({
       policyOverride: { forbidden_topics_regex: ["weapon"] },
     });
-    const data: RespondJobData = { ...baseJobData, messageContent: "buy a weapon now" };
+    const data: RespondJobData = { ...makeData(), messageContent: "buy a weapon now" };
 
     await handleRespondJob(data, ctx);
 
@@ -305,14 +318,10 @@ describe("handleRespondJob — loop protection", () => {
     });
 
     const ctx = makeCtx({
-      messageLastN: [
-        agentMsg("m-a1"),
-        agentMsg("m-a2"),
-        agentMsg("m-a3"),
-      ],
+      messageLastN: [agentMsg("m-a1"), agentMsg("m-a2"), agentMsg("m-a3")],
     });
 
-    await handleRespondJob(baseJobData, ctx);
+    await handleRespondJob(makeData(), ctx);
 
     expect(ctx.mocks.transport.send).not.toHaveBeenCalled();
     const auditArg = ctx.mocks.auditStore.write.mock.calls[0][0];
@@ -326,12 +335,48 @@ describe("handleRespondJob — escalate (MockRuntime.shouldEscalate=true)", () =
       runtimeConfig: { body: "ignored", costUsd: 0, shouldEscalate: true },
     });
 
-    await handleRespondJob(baseJobData, ctx);
+    await handleRespondJob(makeData(), ctx);
 
     expect(ctx.mocks.transport.send).not.toHaveBeenCalled();
     expect(ctx.mocks.messageStore.insert).not.toHaveBeenCalled();
 
     const auditArg = ctx.mocks.auditStore.write.mock.calls[0][0];
     expect(auditArg.decision).toBe("escalated");
+  });
+});
+
+describe("handleRespondJob — silent policy", () => {
+  it("silent policy → early return, nothing called", async () => {
+    const ctx = makeCtx({ policyOverride: { policy: "silent" } });
+    await handleRespondJob(makeData(), ctx);
+    expect(ctx.mocks.transport.send).not.toHaveBeenCalled();
+    expect(ctx.mocks.messageStore.insert).not.toHaveBeenCalled();
+    expect(ctx.mocks.auditStore.write).not.toHaveBeenCalled();
+  });
+});
+
+describe("handleRespondJob — notes updater", () => {
+  it("enableNotesUpdater=true → enqueues agent.notes.maybe_update", async () => {
+    const ctx = makeCtx({}, { enableNotesUpdater: true });
+    await handleRespondJob(makeData(), ctx);
+    expect(ctx.mocks.queue.send).toHaveBeenCalledWith("agent.notes.maybe_update", {
+      workspaceId: WS,
+      contactId: CONTACT,
+      threadId: THREAD,
+    });
+  });
+});
+
+describe("handleRespondJob — idempotency (findRespondedFor)", () => {
+  it("findRespondedFor returns prior record → no_action, nothing sent", async () => {
+    const ctx = makeCtx({
+      auditOverrides: { findRespondedFor: vi.fn().mockResolvedValue({ id: "prior" }) },
+    });
+    await handleRespondJob(makeData(), ctx);
+    expect(ctx.mocks.transport.send).not.toHaveBeenCalled();
+    expect(ctx.mocks.messageStore.insert).not.toHaveBeenCalled();
+    // Worker writes a blocked audit for idempotent_skip:already_responded
+    const auditArg = ctx.mocks.auditStore.write.mock.calls[0][0];
+    expect(auditArg.decision).toBe("blocked");
   });
 });
