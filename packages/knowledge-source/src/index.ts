@@ -6,3 +6,5 @@ import { registerKnowledgeSourceType } from "./registry.js";
 import { GitKnowledgeSource } from "./git-source.js";
 
 registerKnowledgeSourceType("git", () => new GitKnowledgeSource());
+
+export * from "./indexer.js";
