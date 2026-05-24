@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
-import { readFileSync, statSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, statSync, existsSync, readdirSync, writeFileSync, chmodSync, mkdtempSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import simpleGit from "simple-git";
+import type { SimpleGit } from "simple-git";
 import type { KnowledgeSource, KnowledgeFile, SyncResult, KnowledgeSourceConfig } from "@agent-mouth/core";
 
 export interface GitKnowledgeSourceConfig extends KnowledgeSourceConfig {
@@ -54,20 +56,41 @@ export class GitKnowledgeSource implements KnowledgeSource {
   readonly type = "git";
   private cfg!: GitKnowledgeSourceConfig;
   private lastHashes = new Map<string, string>();
+  private sshCommand: string | null = null;
 
-  async init(config: KnowledgeSourceConfig, _env: Record<string, string | undefined>): Promise<void> {
+  async init(config: KnowledgeSourceConfig, env: Record<string, string | undefined>): Promise<void> {
     this.cfg = config as GitKnowledgeSourceConfig;
     if (!this.cfg.repo_url || !this.cfg.branch || !this.cfg.local_path) {
       throw new Error("GitKnowledgeSource requires repo_url, branch, local_path");
     }
+    if (this.cfg.deploy_key_env_var) {
+      const key = env[this.cfg.deploy_key_env_var];
+      if (!key) {
+        throw new Error(
+          `GitKnowledgeSource: deploy_key_env_var "${this.cfg.deploy_key_env_var}" is set in config but the env var has no value`,
+        );
+      }
+      const dir = mkdtempSync(join(tmpdir(), "git-ks-"));
+      const keyFile = join(dir, "id_deploy");
+      writeFileSync(keyFile, key.endsWith("\n") ? key : key + "\n");
+      chmodSync(keyFile, 0o600);
+      this.sshCommand = `ssh -i ${keyFile} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes`;
+    }
+  }
+
+  private getGit(baseDir?: string): SimpleGit {
+    const opts: { baseDir?: string; env?: NodeJS.ProcessEnv } = {};
+    if (baseDir) opts.baseDir = baseDir;
+    if (this.sshCommand) opts.env = { ...process.env, GIT_SSH_COMMAND: this.sshCommand };
+    return simpleGit(opts);
   }
 
   async sync(): Promise<SyncResult> {
     if (!existsSync(join(this.cfg.local_path, ".git"))) {
-      const top = simpleGit();
+      const top = this.getGit();
       await top.clone(this.cfg.repo_url, this.cfg.local_path, ["--depth", "1", "--branch", this.cfg.branch]);
     } else {
-      const repo = simpleGit(this.cfg.local_path);
+      const repo = this.getGit(this.cfg.local_path);
       await repo.fetch("origin", this.cfg.branch);
       await repo.reset(["--hard", `origin/${this.cfg.branch}`]);
     }

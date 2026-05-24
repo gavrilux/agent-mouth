@@ -92,4 +92,19 @@ describe("GitKnowledgeSource", () => {
     const result = await src.sync();
     expect(result.deleted).toContain("a.md");
   });
+
+  it("throws if deploy_key_env_var is set but env var is empty", async () => {
+    const src = new GitKnowledgeSource();
+    await expect(
+      src.init(
+        {
+          repo_url: upstreamRepo,
+          branch: "main",
+          local_path: workdir,
+          deploy_key_env_var: "MY_DEPLOY_KEY",
+        },
+        {}, // empty env — MY_DEPLOY_KEY missing
+      ),
+    ).rejects.toThrow(/MY_DEPLOY_KEY.*no value/);
+  });
 });
