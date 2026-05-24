@@ -38,10 +38,14 @@ export async function indexSource(args: IndexSourceArgs): Promise<IndexResult> {
   };
 
   for (const path of sync.deleted) {
-    const removedId = await args.filesRepo.deleteByPath(args.sourceId, path);
-    if (removedId) {
-      await args.vectorStore.deleteByFileId(removedId);
-      result.deleted++;
+    try {
+      const removedId = await args.filesRepo.deleteByPath(args.sourceId, path);
+      if (removedId) {
+        await args.vectorStore.deleteByFileId(removedId);
+        result.deleted++;
+      }
+    } catch {
+      result.errors++;
     }
   }
 
@@ -54,9 +58,15 @@ export async function indexSource(args: IndexSourceArgs): Promise<IndexResult> {
           source_id: args.sourceId,
           path: kf.path,
           content_hash: kf.contentHash,
-          indexed_at: new Date(),
+          indexed_at: null,
         });
         if (chunks.length === 0) {
+          await args.filesRepo.upsert({
+            source_id: args.sourceId,
+            path: kf.path,
+            content_hash: kf.contentHash,
+            indexed_at: new Date(),
+          });
           if (kind === "added") result.added++;
           else result.modified++;
           continue;
@@ -73,6 +83,12 @@ export async function indexSource(args: IndexSourceArgs): Promise<IndexResult> {
             metadata: c.metadata,
           })),
         );
+        await args.filesRepo.upsert({
+          source_id: args.sourceId,
+          path: kf.path,
+          content_hash: kf.contentHash,
+          indexed_at: new Date(),
+        });
         if (kind === "added") result.added++;
         else result.modified++;
       } catch {

@@ -169,4 +169,91 @@ describe("indexSource", () => {
     expect(result.errors).toBeGreaterThanOrEqual(2);
     expect(result.added).toBe(0);
   });
+
+  it("does not mark file as indexed when vector upsert fails", async () => {
+    const source: KnowledgeSource = {
+      type: "fake",
+      init: async () => {},
+      sync: async () => ({
+        added: [{ path: "fail.md", contentHash: "h", lastModified: new Date(), size: 1 }],
+        modified: [],
+        deleted: [],
+        errors: [],
+      }),
+      listFiles: async () => [],
+      readFile: async () => ({ content: "# A\n\nbody", lastModified: new Date() }),
+    };
+    const embedder: EmbeddingProvider = {
+      name: "fake",
+      dimensions: 4,
+      init: async () => {},
+      embed: async (txts) => txts.map(() => [0, 0, 0, 0]),
+      embedQuery: async () => [0, 0, 0, 0],
+    };
+    const store = {
+      type: "fake",
+      init: async () => {},
+      upsert: vi.fn(async () => { throw new Error("vector boom"); }),
+      deleteByFileId: vi.fn(async () => {}),
+      search: vi.fn(async () => []),
+    } as unknown as VectorStore;
+    const filesRepo = new FakeFilesRepo();
+    const chunker = new MarkdownChunker({ targetTokens: 400, maxTokens: 500, overlapTokens: 50 });
+
+    const result = await indexSource({
+      sourceId: "src-1",
+      source,
+      embedder,
+      vectorStore: store,
+      chunker,
+      filesRepo,
+    });
+    expect(result.errors).toBeGreaterThanOrEqual(1);
+    expect(result.added).toBe(0);
+    expect(filesRepo.rows).toHaveLength(1);
+    expect(filesRepo.rows[0].indexed_at).toBeNull();
+  });
+
+  it("continues processing when deletion of one file fails", async () => {
+    const source: KnowledgeSource = {
+      type: "fake",
+      init: async () => {},
+      sync: async () => ({ added: [], modified: [], deleted: ["a.md", "b.md"], errors: [] }),
+      listFiles: async () => [],
+      readFile: async () => { throw new Error("nope"); },
+    };
+    const embedder: EmbeddingProvider = {
+      name: "fake",
+      dimensions: 4,
+      init: async () => {},
+      embed: async () => [],
+      embedQuery: async () => [0, 0, 0, 0],
+    };
+    let calls = 0;
+    const store = {
+      type: "fake",
+      init: async () => {},
+      upsert: vi.fn(async () => {}),
+      deleteByFileId: vi.fn(async () => {
+        calls++;
+        if (calls === 1) throw new Error("net blip");
+      }),
+      search: vi.fn(async () => []),
+    } as unknown as VectorStore;
+    const filesRepo = new FakeFilesRepo();
+    filesRepo.rows.push({ id: "fa", source_id: "src-1", path: "a.md", content_hash: "h", indexed_at: new Date() });
+    filesRepo.rows.push({ id: "fb", source_id: "src-1", path: "b.md", content_hash: "h", indexed_at: new Date() });
+    const chunker = new MarkdownChunker({ targetTokens: 400, maxTokens: 500, overlapTokens: 50 });
+
+    const result = await indexSource({
+      sourceId: "src-1",
+      source,
+      embedder,
+      vectorStore: store,
+      chunker,
+      filesRepo,
+    });
+    expect(result.errors).toBeGreaterThanOrEqual(1);
+    expect(result.deleted).toBe(1);
+  });
 });
