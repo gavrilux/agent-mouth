@@ -15,7 +15,7 @@ export function getTool(name: string): Tool | undefined {
 }
 
 export function resolveToolsForPolicy(policy: Policy): Tool[] {
-  const raw = policy.allowed_tools ?? "[]";
+  const raw = policy.allowed_tools ?? '["*"]';
   let allowed: string[];
   try {
     allowed = JSON.parse(raw);

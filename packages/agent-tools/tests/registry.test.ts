@@ -66,6 +66,14 @@ describe("tool registry", () => {
     expect(out).toEqual(["read1"]);
   });
 
+  it("resolveToolsForPolicy with missing allowed_tools falls back to schema default ['*']", () => {
+    registerTool(makeTool("read1"));
+    registerTool(makeTool("destructive", true));
+    const policyMissing = { ...policy(["*"]), allowed_tools: undefined } as unknown as Policy;
+    const out = resolveToolsForPolicy(policyMissing).map((t) => t.name);
+    expect(out).toEqual(["read1"]);
+  });
+
   it("resolveToolsForPolicy with explicit list returns intersection (including destructive)", () => {
     registerTool(makeTool("read1"));
     registerTool(makeTool("destructive", true));
