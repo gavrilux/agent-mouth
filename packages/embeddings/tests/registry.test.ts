@@ -3,6 +3,7 @@ import type { EmbeddingProvider } from "@agent-mouth/core";
 import {
   registerEmbeddingProvider,
   resolveEmbeddingProvider,
+  listEmbeddingProviders,
   _resetEmbeddingRegistry,
 } from "../src/registry.js";
 
@@ -18,6 +19,7 @@ describe("embedding provider registry", () => {
       embedQuery: async () => [0, 0, 0, 0],
     };
     registerEmbeddingProvider("fake", { apiKeyEnv: "FAKE_KEY", factory: () => fake });
+    expect(listEmbeddingProviders()).toContain("fake");
     const resolved = await resolveEmbeddingProvider("fake", { FAKE_KEY: "x" });
     expect(resolved.name).toBe("fake");
   });

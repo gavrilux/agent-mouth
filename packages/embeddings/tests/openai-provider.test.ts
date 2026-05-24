@@ -40,6 +40,16 @@ describe("OpenAIEmbeddingProvider", () => {
     expect(v).toEqual([1, 2, 3]);
   });
 
+  it("embedQuery throws when embed returns empty array", async () => {
+    (globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: [] }),
+    });
+    const p = new OpenAIEmbeddingProvider();
+    await p.init({ OPENAI_API_KEY: "sk-test" });
+    await expect(p.embedQuery("q")).rejects.toThrow(/No embedding returned/);
+  });
+
   it("throws on non-ok response", async () => {
     (globalThis.fetch as any).mockResolvedValueOnce({
       ok: false,
