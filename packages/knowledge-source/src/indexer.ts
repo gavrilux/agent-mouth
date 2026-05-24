@@ -72,13 +72,18 @@ export async function indexSource(args: IndexSourceArgs): Promise<IndexResult> {
           continue;
         }
         const embeddings = await args.embedder.embed(chunks.map((c) => c.text));
+        if (embeddings.length !== chunks.length) {
+          throw new Error(
+            `Embedder returned ${embeddings.length} vectors for ${chunks.length} chunks`,
+          );
+        }
         await args.vectorStore.upsert(
           fileId,
           chunks.map((c, i) => ({
             fileId,
             chunkIndex: i,
             text: c.text,
-            embedding: embeddings[i],
+            embedding: embeddings[i]!,
             tokenCount: c.tokenCount,
             metadata: c.metadata,
           })),
