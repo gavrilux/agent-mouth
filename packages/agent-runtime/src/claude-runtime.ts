@@ -6,6 +6,7 @@ import type {
   RuntimeConfig,
   RespondTurnRequest,
   RespondTurnResponse,
+  RuntimeStopReason,
 } from "./types.js";
 import { buildSystemPrompt, buildUserMessages } from "./prompt-builder.js";
 
@@ -138,12 +139,18 @@ export class ClaudeRuntime implements AgentRuntime {
       tool_choice,
     });
 
+    const usage = res.usage as unknown as Record<string, unknown>;
+    const cachedRaw = usage.cache_read_input_tokens;
     const tokens = {
       in: res.usage.input_tokens,
       out: res.usage.output_tokens,
-      cached: (res.usage as unknown as Record<string, unknown>).cache_read_input_tokens as number ?? 0,
+      cached: typeof cachedRaw === "number" ? cachedRaw : 0,
     };
     const costUsd = this.computeCost(req.model, tokens);
+    const apiStop: RuntimeStopReason =
+      res.stop_reason === "end_turn" || res.stop_reason === "max_tokens"
+        ? res.stop_reason
+        : "tool_use";
 
     const respondCall = res.content.find(
       (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === "respond_to_user",
@@ -158,7 +165,7 @@ export class ClaudeRuntime implements AgentRuntime {
       };
       return {
         finalOutput: input,
-        stopReason: "end_turn",
+        stopReason: apiStop === "max_tokens" ? "max_tokens" : "end_turn",
         tokens,
         costUsd,
       };
@@ -173,7 +180,7 @@ export class ClaudeRuntime implements AgentRuntime {
         name: c.name,
         input: c.input as Record<string, unknown>,
       })),
-      stopReason: "tool_use",
+      stopReason: apiStop,
       tokens,
       costUsd,
     };
