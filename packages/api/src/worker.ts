@@ -1,7 +1,8 @@
 import { Agent } from "@agent-mouth/agent";
 import { NotesUpdater } from "@agent-mouth/agent-notes-updater";
+import { bootstrapTools, resolveToolsForPolicy } from "@agent-mouth/agent-tools";
 import { resolveRuntime } from "@agent-mouth/agent-runtime";
-import type { Transport } from "@agent-mouth/core";
+import type { KnowledgeSource, Policy, Tool, Transport } from "@agent-mouth/core";
 import type {
   ContactStore,
   MessageStore,
@@ -9,8 +10,19 @@ import type {
   ThreadStore,
   WorkspaceStore,
 } from "@agent-mouth/core";
+import { resolveEmbeddingProvider } from "@agent-mouth/embeddings";
+import { resolveKnowledgeSource } from "@agent-mouth/knowledge-source";
 import { PgBossQueue } from "@agent-mouth/queue-pgboss";
 import { SupabaseAuditLogStore, SupabaseDraftStore } from "@agent-mouth/storage-supabase";
+import { resolveVectorStore } from "@agent-mouth/vector-store";
+import { resolveWebSearchProvider } from "@agent-mouth/web-search";
+import { Client as PgClient } from "pg";
+
+// Side-effect imports — register providers in their respective registries
+import "@agent-mouth/embeddings";
+import "@agent-mouth/web-search";
+import "@agent-mouth/vector-store";
+import "@agent-mouth/knowledge-source";
 
 export interface WorkerDeps {
   databaseUrl: string;
@@ -30,6 +42,10 @@ export interface WorkerDeps {
   workspaceStore: WorkspaceStore;
   policyEngine: PolicyEngine;
   transport: Transport;
+  // Phase 3 — when true, attempt to bootstrap tools at startup
+  enableAgentTools?: boolean;
+  // Workspace ID used to look up the knowledge source row (typically the default workspace)
+  defaultWorkspaceId?: string;
 }
 
 export interface RespondJobData {
@@ -85,8 +101,73 @@ export async function startWorker(
     audit: auditStore,
   });
 
+  // ── Phase 3 bootstrap (tools + knowledge source providers) ──────────────────
+  // Any failure here falls back to Phase 2 (no tools) without crashing the worker.
+  let toolsResolver: ((policy: Policy) => Tool[]) | null = null;
+
+  if (deps.enableAgentTools && deps.defaultWorkspaceId) {
+    try {
+      const env = process.env;
+      const embedder = await resolveEmbeddingProvider("openai", env);
+      const webSearch = await resolveWebSearchProvider("tavily", env);
+      const vectorStore = await resolveVectorStore({ type: "pgvector", env });
+
+      // Load knowledge source config from DB
+      const pg = new PgClient({ connectionString: deps.databaseUrl });
+      await pg.connect();
+      let knowledgeSource: KnowledgeSource | null = null;
+      try {
+        const { rows } = await pg.query(
+          `SELECT id, type, config FROM knowledge_sources WHERE workspace_id = $1 LIMIT 1`,
+          [deps.defaultWorkspaceId],
+        );
+        if (rows.length > 0) {
+          knowledgeSource = await resolveKnowledgeSource({
+            type: rows[0].type as string,
+            config: rows[0].config as Record<string, unknown>,
+            env,
+          });
+        }
+      } finally {
+        await pg.end();
+      }
+
+      if (knowledgeSource) {
+        bootstrapTools({
+          webSearchProvider: webSearch,
+          vectorStore,
+          embedder,
+          knowledgeSource,
+        });
+        toolsResolver = (policy) => resolveToolsForPolicy(policy);
+        // eslint-disable-next-line no-console
+        console.log(
+          "[phase-3] agent tools registered: search_web, search_knowledge, read_knowledge_file",
+        );
+      } else {
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[phase-3] no knowledge_sources row for workspace — tools NOT registered, falling back to Phase 2",
+        );
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // eslint-disable-next-line no-console
+      console.error(`[phase-3] tools bootstrap failed: ${msg} — continuing in Phase 2 mode`);
+      toolsResolver = null;
+    }
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   await queue.work<RespondJobData>("agent.respond", async (data) => {
-    await handleRespondJob(data, { agent, queue, deps, auditStore, draftStore });
+    await handleRespondJob(data, {
+      agent,
+      queue,
+      deps,
+      auditStore,
+      draftStore,
+      toolsResolver: toolsResolver ?? undefined,
+    });
   });
 
   if (deps.enableNotesUpdater) {
@@ -113,6 +194,7 @@ export async function handleRespondJob(
     deps: WorkerDeps;
     auditStore: SupabaseAuditLogStore;
     draftStore: SupabaseDraftStore;
+    toolsResolver?: (policy: Policy) => Tool[];
   },
 ): Promise<void> {
   const policy = await ctx.deps.policyEngine.evaluate({
@@ -124,6 +206,7 @@ export async function handleRespondJob(
   if (policy.policy === "silent") return;
 
   const t0 = Date.now();
+  const tools = ctx.toolsResolver ? ctx.toolsResolver(policy) : undefined;
   const out = await ctx.agent.respond({
     workspaceId: data.workspaceId,
     contactId: data.contactId,
@@ -132,6 +215,7 @@ export async function handleRespondJob(
     incomingMessageId: data.messageId,
     incomingContent: data.messageContent,
     policy,
+    tools,
   });
   const latencyMs = Date.now() - t0;
 

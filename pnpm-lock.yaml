@@ -153,9 +153,18 @@ importers:
       '@agent-mouth/agent-runtime':
         specifier: workspace:*
         version: link:../agent-runtime
+      '@agent-mouth/agent-tools':
+        specifier: workspace:*
+        version: link:../agent-tools
       '@agent-mouth/core':
         specifier: workspace:*
         version: link:../core
+      '@agent-mouth/embeddings':
+        specifier: workspace:*
+        version: link:../embeddings
+      '@agent-mouth/knowledge-source':
+        specifier: workspace:*
+        version: link:../knowledge-source
       '@agent-mouth/queue-pgboss':
         specifier: workspace:*
         version: link:../queue-pgboss
@@ -165,6 +174,12 @@ importers:
       '@agent-mouth/transport-telegram':
         specifier: workspace:*
         version: link:../transport-telegram
+      '@agent-mouth/vector-store':
+        specifier: workspace:*
+        version: link:../vector-store
+      '@agent-mouth/web-search':
+        specifier: workspace:*
+        version: link:../web-search
       '@hono/node-server':
         specifier: ^1.13.0
         version: 1.19.14(hono@4.12.18)
@@ -177,6 +192,9 @@ importers:
       hono:
         specifier: ^4.0.0
         version: 4.12.18
+      pg:
+        specifier: ^8.13.0
+        version: 8.21.0
       pino:
         specifier: ^9.4.0
         version: 9.14.0
@@ -187,6 +205,9 @@ importers:
       '@types/node':
         specifier: ^20.16.0
         version: 20.19.41
+      '@types/pg':
+        specifier: ^8.11.0
+        version: 8.20.0
       msw:
         specifier: ^2.4.0
         version: 2.14.6(@types/node@20.19.41)(typescript@5.5.4)

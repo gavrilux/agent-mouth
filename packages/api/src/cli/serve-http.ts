@@ -122,6 +122,8 @@ export async function serveHttp(): Promise<void> {
         defaultModel,
         notesModel: process.env.NOTES_UPDATER_MODEL ?? "claude-haiku-4-5-20251001",
         enableNotesUpdater: process.env.ENABLE_NOTES_UPDATER === "true",
+        enableAgentTools: process.env.ENABLE_AGENT_TOOLS === "true",
+        defaultWorkspaceId: workspace.id,
         contactStore,
         messageStore,
         threadStore,
