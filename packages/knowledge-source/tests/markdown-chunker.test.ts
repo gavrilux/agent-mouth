@@ -83,13 +83,17 @@ body
   });
 
   it("handles \"$\" characters in heading text safely", () => {
-    const md = `# Title\n\n## Score ($100+)\n\nBody text.\n`;
+    // `$&` is JS's replace-pattern token for "whole match"; if unescaped, an
+    // unsafe `replace(re, "$&xyz")` would echo the matched heading back.
+    // Heading `## Score ($&corrupt)` would, with the bug present, expand to
+    // include the matched heading text — corrupting output.
+    const md = `# Title\n\n## Score ($&corrupt)\n\nBody text.\n`;
     const chunker = new MarkdownChunker({ targetTokens: 400, maxTokens: 500, overlapTokens: 50 });
     const chunks = chunker.split(md, { path: "x.md" });
     const scoreChunk = chunks.find(c => c.text.includes("Score"));
     expect(scoreChunk).toBeDefined();
-    expect(scoreChunk!.text).toContain("$100+");
-    expect(scoreChunk!.text).not.toMatch(/\$&|\$\d/);
+    // Literal `$&corrupt` must survive intact (no replace-pattern expansion).
+    expect(scoreChunk!.text).toContain("$&corrupt");
   });
 
   it("hard-splits single paragraph exceeding maxTokens", () => {
