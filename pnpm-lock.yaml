@@ -316,10 +316,19 @@ importers:
       '@agent-mouth/core':
         specifier: workspace:*
         version: link:../core
+      '@agent-mouth/knowledge-source':
+        specifier: workspace:*
+        version: link:../knowledge-source
+      pg:
+        specifier: ^8.13.0
+        version: 8.21.0
     devDependencies:
       '@types/node':
         specifier: ^20.16.0
         version: 20.19.41
+      '@types/pg':
+        specifier: ^8.11.0
+        version: 8.20.0
       typescript:
         specifier: 5.5.4
         version: 5.5.4

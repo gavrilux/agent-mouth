@@ -11,10 +11,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@agent-mouth/core": "workspace:*"
+    "@agent-mouth/core": "workspace:*",
+    "@agent-mouth/knowledge-source": "workspace:*",
+    "pg": "^8.13.0"
   },
   "devDependencies": {
     "@types/node": "^20.16.0",
+    "@types/pg": "^8.11.0",
     "typescript": "5.5.4",
     "vitest": "^2.1.0"
   }
