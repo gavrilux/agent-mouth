@@ -20,7 +20,7 @@ export class SupabaseKnowledgeFilesRepo implements KnowledgeFilesRepo {
     await this.client.end();
   }
 
-  async getByPath(sourceId: string, path: string) {
+  async getByPath(sourceId: string, path: string): Promise<{ id: string; content_hash: string } | null> {
     const { rows } = await this.client.query(
       `SELECT id, content_hash FROM knowledge_files WHERE source_id = $1 AND path = $2 LIMIT 1`,
       [sourceId, path],
@@ -43,6 +43,11 @@ export class SupabaseKnowledgeFilesRepo implements KnowledgeFilesRepo {
        RETURNING id`,
       [row.source_id, row.path, row.content_hash, row.indexed_at],
     );
+    if (rows.length === 0) {
+      throw new Error(
+        `upsert returned no rows for source ${row.source_id} path ${row.path} — check RLS / triggers`,
+      );
+    }
     return rows[0].id;
   }
 
