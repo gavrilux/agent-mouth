@@ -11,9 +11,9 @@ import type {
   WorkspaceStore,
 } from "@agent-mouth/core";
 import { resolveEmbeddingProvider } from "@agent-mouth/embeddings";
-import { resolveKnowledgeSource } from "@agent-mouth/knowledge-source";
+import { MarkdownChunker, indexSource, resolveKnowledgeSource } from "@agent-mouth/knowledge-source";
 import { PgBossQueue } from "@agent-mouth/queue-pgboss";
-import { SupabaseAuditLogStore, SupabaseDraftStore } from "@agent-mouth/storage-supabase";
+import { SupabaseAuditLogStore, SupabaseDraftStore, SupabaseKnowledgeFilesRepo } from "@agent-mouth/storage-supabase";
 import { resolveVectorStore } from "@agent-mouth/vector-store";
 import { resolveWebSearchProvider } from "@agent-mouth/web-search";
 import { Client as PgClient } from "pg";
@@ -47,6 +47,10 @@ export interface WorkerDeps {
   enableAgentTools?: boolean;
   // Workspace ID used to look up the knowledge source row (typically the default workspace)
   defaultWorkspaceId?: string;
+  // Phase 3 — when true, register the knowledge.sync cron handler
+  enableKnowledgeSync?: boolean;
+  // Default 15 minutes
+  knowledgeSyncIntervalMin?: number;
 }
 
 export interface RespondJobData {
@@ -154,6 +158,27 @@ export async function startWorker(
       logger.error({ err }, "[phase-3] tools bootstrap failed — continuing in Phase 2 mode");
       toolsResolver = null;
     }
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
+  // ── Phase 3 knowledge.sync recurring job ────────────────────────────────────
+  if (deps.enableKnowledgeSync && deps.defaultWorkspaceId) {
+    await queue.work("knowledge.sync", async () => {
+      await runKnowledgeSync({
+        databaseUrl: deps.databaseUrl,
+        workspaceId: deps.defaultWorkspaceId!,
+      });
+    });
+
+    const intervalMin = deps.knowledgeSyncIntervalMin ?? 15;
+    await queue.scheduleRecurring("knowledge.sync", `*/${intervalMin} * * * *`, {});
+    // Trigger one immediate run so first boot doesn't wait the full interval
+    await queue.send(
+      "knowledge.sync",
+      {},
+      { singletonKey: `knowledge-sync-boot-${Date.now()}` },
+    );
+    logger.info({ intervalMin }, "[phase-3] knowledge.sync registered");
   }
   // ────────────────────────────────────────────────────────────────────────────
 
@@ -313,5 +338,69 @@ export async function handleRespondJob(
       contactId: data.contactId,
       threadId: data.threadId,
     });
+  }
+}
+
+// ── Phase 3: runKnowledgeSync (exported for testability) ────────────────────
+
+export interface RunKnowledgeSyncArgs {
+  databaseUrl: string;
+  workspaceId: string;
+}
+
+export async function runKnowledgeSync(args: RunKnowledgeSyncArgs): Promise<void> {
+  const env = process.env;
+  const pg = new PgClient({ connectionString: args.databaseUrl });
+  try {
+    await pg.connect();
+    const { rows } = await pg.query(
+      `SELECT id, type, config FROM knowledge_sources WHERE workspace_id = $1`,
+      [args.workspaceId],
+    );
+    for (const row of rows) {
+      const sourceId = row.id as string;
+      try {
+        const source = await resolveKnowledgeSource({
+          type: row.type as string,
+          config: row.config as Record<string, unknown>,
+          env,
+        });
+        const embedder = await resolveEmbeddingProvider("openai", env);
+        const vectorStore = await resolveVectorStore({ type: "pgvector", env });
+        const filesRepo = new SupabaseKnowledgeFilesRepo({ connectionString: args.databaseUrl });
+        await filesRepo.init();
+        const chunker = new MarkdownChunker({
+          targetTokens: 400,
+          maxTokens: 500,
+          overlapTokens: 50,
+        });
+        try {
+          const result = await indexSource({
+            sourceId,
+            source,
+            embedder,
+            vectorStore,
+            chunker,
+            filesRepo,
+          });
+          await pg.query(
+            `UPDATE knowledge_sources SET last_synced_at = NOW(), last_sync_status = $1 WHERE id = $2`,
+            ["ok", sourceId],
+          );
+          logger.info({ sourceId, result }, "[phase-3] knowledge.sync done");
+        } finally {
+          await filesRepo.close().catch(() => {});
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await pg.query(
+          `UPDATE knowledge_sources SET last_sync_status = $1 WHERE id = $2`,
+          [`error: ${msg}`, sourceId],
+        );
+        logger.error({ err, sourceId }, "[phase-3] knowledge.sync source failed");
+      }
+    }
+  } finally {
+    await pg.end().catch(() => {});
   }
 }

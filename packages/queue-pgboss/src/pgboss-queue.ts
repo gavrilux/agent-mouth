@@ -40,4 +40,10 @@ export class PgBossQueue implements JobQueue {
       }
     });
   }
+
+  async scheduleRecurring(name: string, cron: string, data: object): Promise<void> {
+    await this.boss.createQueue(name);
+    // pg-boss: schedule(name, cron, data?, options?) — runs job on cron schedule
+    await this.boss.schedule(name, cron, data);
+  }
 }
