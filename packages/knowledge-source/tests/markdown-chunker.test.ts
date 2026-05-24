@@ -69,4 +69,38 @@ body
     expect(chunks[1].metadata.line_start).toBeTypeOf("number");
     expect(chunks[1].metadata.line_end).toBeTypeOf("number");
   });
+
+  it("does NOT double the heading when a section is sub-split", () => {
+    const longPara = "lorem ipsum ".repeat(200);
+    const md = `# T\n\n## S\n\n${longPara}\n\n${longPara}`;
+    const chunker = new MarkdownChunker({ targetTokens: 400, maxTokens: 500, overlapTokens: 50 });
+    const chunks = chunker.split(md, { path: "x.md" });
+    for (const c of chunks) {
+      // The heading should appear at most once in each chunk
+      const headingOccurrences = (c.text.match(/^# T > ## S$/gm) ?? []).length;
+      expect(headingOccurrences).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("handles \"$\" characters in heading text safely", () => {
+    const md = `# Title\n\n## Score ($100+)\n\nBody text.\n`;
+    const chunker = new MarkdownChunker({ targetTokens: 400, maxTokens: 500, overlapTokens: 50 });
+    const chunks = chunker.split(md, { path: "x.md" });
+    const scoreChunk = chunks.find(c => c.text.includes("Score"));
+    expect(scoreChunk).toBeDefined();
+    expect(scoreChunk!.text).toContain("$100+");
+    expect(scoreChunk!.text).not.toMatch(/\$&|\$\d/);
+  });
+
+  it("hard-splits single paragraph exceeding maxTokens", () => {
+    // One giant paragraph of ~1000 tokens, no internal newlines
+    const giant = "lorem ipsum ".repeat(400);
+    const md = `# T\n\n## S\n\n${giant}`;
+    const chunker = new MarkdownChunker({ targetTokens: 400, maxTokens: 500, overlapTokens: 50 });
+    const chunks = chunker.split(md, { path: "x.md" });
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const c of chunks) {
+      expect(c.tokenCount).toBeLessThanOrEqual(500);
+    }
+  });
 });

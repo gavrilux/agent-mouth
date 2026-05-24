@@ -109,6 +109,44 @@ function countTokens(text: string): number {
   return encode(text).length;
 }
 
+/**
+ * Hard-split a single oversized string by sentence, then by character count as fallback.
+ */
+function hardSplit(text: string, maxTokens: number): string[] {
+  // Split by sentence (. ! ? followed by space or newline)
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  const out: string[] = [];
+  let buf: string[] = [];
+  let bufTok = 0;
+  for (const s of sentences) {
+    const tok = countTokens(s);
+    if (tok > maxTokens) {
+      // Fallback: chunk by approximate token count using slice
+      if (buf.length > 0) {
+        out.push(buf.join(" "));
+        buf = [];
+        bufTok = 0;
+      }
+      // Slice text approximately — assume ~4 chars/token average
+      const approxCharsPerChunk = maxTokens * 4;
+      for (let i = 0; i < s.length; i += approxCharsPerChunk) {
+        out.push(s.slice(i, i + approxCharsPerChunk));
+      }
+      continue;
+    }
+    if (bufTok + tok > maxTokens && buf.length > 0) {
+      out.push(buf.join(" "));
+      buf = [s];
+      bufTok = tok;
+    } else {
+      buf.push(s);
+      bufTok += tok;
+    }
+  }
+  if (buf.length > 0) out.push(buf.join(" "));
+  return out;
+}
+
 function splitByParagraphs(text: string, maxTokens: number): string[] {
   const paras = text.split(/\n\n+/);
   const out: string[] = [];
@@ -116,6 +154,17 @@ function splitByParagraphs(text: string, maxTokens: number): string[] {
   let bufTok = 0;
   for (const p of paras) {
     const tok = countTokens(p);
+    if (tok > maxTokens) {
+      // Flush current buffer first
+      if (buf.length > 0) {
+        out.push(buf.join("\n\n"));
+        buf = [];
+        bufTok = 0;
+      }
+      // Hard-split oversized paragraph by sentence, then by chunk-size if still too big
+      out.push(...hardSplit(p, maxTokens));
+      continue;
+    }
     if (bufTok + tok > maxTokens && buf.length > 0) {
       out.push(buf.join("\n\n"));
       buf = [p];
@@ -133,9 +182,12 @@ function splitByParagraphs(text: string, maxTokens: number): string[] {
  * Replace the first markdown heading line (# / ## / ###) in a section body
  * with the full breadcrumb heading_path so chunks are self-contained.
  * e.g. "## Section A\n\nBody" → "# Title > ## Section A\n\nBody"
+ *
+ * Uses the function form of replace to avoid JavaScript's special `$` replacement
+ * tokens (e.g. $&, $1) corrupting headings that contain literal `$` characters.
  */
 function replaceFirstHeadingWithPath(body: string, headingPath: string): string {
-  return body.replace(/^#{1,3} .+/, headingPath);
+  return body.replace(/^#{1,3} .+/, () => headingPath);
 }
 
 export class MarkdownChunker {
@@ -165,7 +217,11 @@ export class MarkdownChunker {
           },
         });
       } else {
-        const parts = splitByParagraphs(bodyWithBreadcrumb, this.opts.targetTokens);
+        // Bug 1 fix: strip the raw first heading line from the body before paragraph-splitting,
+        // then prepend section.headingPath to EVERY part uniformly. This prevents the heading
+        // appearing twice (once from replaceFirstHeadingWithPath, once from the explicit prepend).
+        const bodyWithoutHeading = section.body.replace(/^#{1,3} .+\n?/, "");
+        const parts = splitByParagraphs(bodyWithoutHeading, this.opts.targetTokens);
         for (const part of parts) {
           const text = `${section.headingPath}\n\n${part}`;
           chunks.push({
