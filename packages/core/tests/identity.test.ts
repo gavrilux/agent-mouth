@@ -50,6 +50,7 @@ describe("identity schemas", () => {
       max_tool_calls: 10,
       forbidden_topics_regex: [],
       escalate_triggers_regex: [],
+      allowed_tools: '["*"]',
     });
   });
 

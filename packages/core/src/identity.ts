@@ -60,6 +60,7 @@ export const PolicySchema = z.object({
   max_tool_calls: z.number().int().nonnegative().default(10),
   forbidden_topics_regex: z.array(z.string()).default([]),
   escalate_triggers_regex: z.array(z.string()).default([]),
+  allowed_tools: z.string().default('["*"]'),
   created_at: z.string().datetime({ offset: true }),
 });
 export type Policy = z.infer<typeof PolicySchema>;
