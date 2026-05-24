@@ -17,6 +17,7 @@ import { SupabaseAuditLogStore, SupabaseDraftStore } from "@agent-mouth/storage-
 import { resolveVectorStore } from "@agent-mouth/vector-store";
 import { resolveWebSearchProvider } from "@agent-mouth/web-search";
 import { Client as PgClient } from "pg";
+import { logger } from "./logger.js";
 
 // Side-effect imports — register providers in their respective registries
 import "@agent-mouth/embeddings";
@@ -112,11 +113,12 @@ export async function startWorker(
       const webSearch = await resolveWebSearchProvider("tavily", env);
       const vectorStore = await resolveVectorStore({ type: "pgvector", env });
 
-      // Load knowledge source config from DB
+      // Load knowledge source config from DB — connect inside try/finally to
+      // guarantee pg.end() runs even if pg.connect() itself throws.
       const pg = new PgClient({ connectionString: deps.databaseUrl });
-      await pg.connect();
       let knowledgeSource: KnowledgeSource | null = null;
       try {
+        await pg.connect();
         const { rows } = await pg.query(
           `SELECT id, type, config FROM knowledge_sources WHERE workspace_id = $1 LIMIT 1`,
           [deps.defaultWorkspaceId],
@@ -129,7 +131,7 @@ export async function startWorker(
           });
         }
       } finally {
-        await pg.end();
+        await pg.end().catch(() => {});
       }
 
       if (knowledgeSource) {
@@ -140,20 +142,16 @@ export async function startWorker(
           knowledgeSource,
         });
         toolsResolver = (policy) => resolveToolsForPolicy(policy);
-        // eslint-disable-next-line no-console
-        console.log(
+        logger.info(
           "[phase-3] agent tools registered: search_web, search_knowledge, read_knowledge_file",
         );
       } else {
-        // eslint-disable-next-line no-console
-        console.warn(
+        logger.warn(
           "[phase-3] no knowledge_sources row for workspace — tools NOT registered, falling back to Phase 2",
         );
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      // eslint-disable-next-line no-console
-      console.error(`[phase-3] tools bootstrap failed: ${msg} — continuing in Phase 2 mode`);
+      logger.error({ err }, "[phase-3] tools bootstrap failed — continuing in Phase 2 mode");
       toolsResolver = null;
     }
   }
