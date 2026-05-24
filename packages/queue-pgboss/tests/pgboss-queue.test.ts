@@ -39,6 +39,35 @@ describe("PgBossQueue.scheduleRecurring — unit", () => {
     await q.scheduleRecurring("knowledge.sync", "*/15 * * * *", {});
 
     expect(createQueue).toHaveBeenCalledWith("knowledge.sync");
-    expect(schedule).toHaveBeenCalledWith("knowledge.sync", "*/15 * * * *", {});
+    expect(schedule).toHaveBeenCalledWith(
+      "knowledge.sync",
+      "*/15 * * * *",
+      {},
+      { singletonKey: undefined },
+    );
+  });
+
+  it("forwards singletonKey to boss.schedule", async () => {
+    const createQueue = vi.fn().mockResolvedValue(undefined);
+    const schedule = vi.fn().mockResolvedValue(undefined);
+
+    const q = new PgBossQueue({ connectionString: "postgres://test:test@localhost/test" });
+    const boss = (q as unknown as { boss: Record<string, unknown> }).boss;
+    boss.createQueue = createQueue;
+    boss.schedule = schedule;
+
+    await q.scheduleRecurring(
+      "knowledge.sync",
+      "*/15 * * * *",
+      {},
+      { singletonKey: "knowledge.sync.singleton" },
+    );
+
+    expect(schedule).toHaveBeenCalledWith(
+      "knowledge.sync",
+      "*/15 * * * *",
+      {},
+      { singletonKey: "knowledge.sync.singleton" },
+    );
   });
 });

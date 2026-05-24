@@ -41,9 +41,17 @@ export class PgBossQueue implements JobQueue {
     });
   }
 
-  async scheduleRecurring(name: string, cron: string, data: object): Promise<void> {
+  async scheduleRecurring(
+    name: string,
+    cron: string,
+    data: object,
+    options?: { singletonKey?: string },
+  ): Promise<void> {
     await this.boss.createQueue(name);
-    // pg-boss: schedule(name, cron, data?, options?) — runs job on cron schedule
-    await this.boss.schedule(name, cron, data);
+    // pg-boss: schedule(name, cron, data?, options?). singletonKey deduplicates
+    // overlapping runs so a long-running tick doesn't race with the next one.
+    await this.boss.schedule(name, cron, data, {
+      singletonKey: options?.singletonKey,
+    });
   }
 }

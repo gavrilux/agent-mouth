@@ -119,7 +119,7 @@ export async function startWorker(
 
       // Load knowledge source config from DB — connect inside try/finally to
       // guarantee pg.end() runs even if pg.connect() itself throws.
-      const pg = new PgClient({ connectionString: deps.databaseUrl });
+      const pg = new PgClient({ connectionString: deps.databaseUrl, connectionTimeoutMillis: 10_000 });
       let knowledgeSource: KnowledgeSource | null = null;
       try {
         await pg.connect();
@@ -171,13 +171,17 @@ export async function startWorker(
     });
 
     const intervalMin = deps.knowledgeSyncIntervalMin ?? 15;
-    await queue.scheduleRecurring("knowledge.sync", `*/${intervalMin} * * * *`, {});
-    // Trigger one immediate run so first boot doesn't wait the full interval
-    await queue.send(
+    // Single fixed singletonKey so the cron tick and the boot kick share one
+    // queued slot — overlapping invocations dedupe against each other.
+    const SYNC_KEY = "knowledge.sync.singleton";
+    await queue.scheduleRecurring(
       "knowledge.sync",
+      `*/${intervalMin} * * * *`,
       {},
-      { singletonKey: `knowledge-sync-boot-${Date.now()}` },
+      { singletonKey: SYNC_KEY },
     );
+    // Trigger one immediate run so first boot doesn't wait the full interval.
+    await queue.send("knowledge.sync", {}, { singletonKey: SYNC_KEY });
     logger.info({ intervalMin }, "[phase-3] knowledge.sync registered");
   }
   // ────────────────────────────────────────────────────────────────────────────
@@ -350,13 +354,17 @@ export interface RunKnowledgeSyncArgs {
 
 export async function runKnowledgeSync(args: RunKnowledgeSyncArgs): Promise<void> {
   const env = process.env;
-  const pg = new PgClient({ connectionString: args.databaseUrl });
+  // 10s connect timeout so a hung Supabase doesn't keep this job open forever.
+  const pg = new PgClient({ connectionString: args.databaseUrl, connectionTimeoutMillis: 10_000 });
   try {
     await pg.connect();
     const { rows } = await pg.query(
       `SELECT id, type, config FROM knowledge_sources WHERE workspace_id = $1`,
       [args.workspaceId],
     );
+    // Embedder + vector store don't depend on the row; resolve once per tick.
+    const embedder = await resolveEmbeddingProvider("openai", env);
+    const vectorStore = await resolveVectorStore({ type: "pgvector", env });
     for (const row of rows) {
       const sourceId = row.id as string;
       try {
@@ -365,8 +373,6 @@ export async function runKnowledgeSync(args: RunKnowledgeSyncArgs): Promise<void
           config: row.config as Record<string, unknown>,
           env,
         });
-        const embedder = await resolveEmbeddingProvider("openai", env);
-        const vectorStore = await resolveVectorStore({ type: "pgvector", env });
         const filesRepo = new SupabaseKnowledgeFilesRepo({ connectionString: args.databaseUrl });
         await filesRepo.init();
         const chunker = new MarkdownChunker({
