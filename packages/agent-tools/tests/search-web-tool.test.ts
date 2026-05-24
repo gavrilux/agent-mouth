@@ -47,6 +47,19 @@ describe("SearchWebTool", () => {
     expect(res.error).toContain("boom");
   });
 
+  it("stringifies non-Error throws safely", async () => {
+    const provider: WebSearchProvider = {
+      name: "weird",
+      init: async () => {},
+      // eslint-disable-next-line @typescript-eslint/no-throw-literal
+      search: async () => { throw "string-thrown"; },
+    };
+    const tool = new SearchWebTool({ provider });
+    const res = await tool.execute({ query: "x" }, ctx());
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe("string-thrown");
+  });
+
   it("defaults max_results to 5 when not provided", async () => {
     let capturedMax = 0;
     const spy: WebSearchProvider = {

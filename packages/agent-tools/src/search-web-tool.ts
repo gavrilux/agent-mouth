@@ -36,7 +36,7 @@ export class SearchWebTool implements Tool<SearchWebInput> {
     } catch (err) {
       return {
         ok: false,
-        error: (err as Error).message,
+        error: err instanceof Error ? err.message : String(err),
         costUsd: 0,
         latencyMs: Date.now() - start,
       };
