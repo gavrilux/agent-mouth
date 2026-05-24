@@ -2,8 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, statSync, existsSync, readdirSync, writeFileSync, chmodSync, mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import simpleGit from "simple-git";
-import type { SimpleGit } from "simple-git";
+import { simpleGit, type SimpleGit } from "simple-git";
 import type { KnowledgeSource, KnowledgeFile, SyncResult, KnowledgeSourceConfig } from "@agent-mouth/core";
 
 export interface GitKnowledgeSourceConfig extends KnowledgeSourceConfig {

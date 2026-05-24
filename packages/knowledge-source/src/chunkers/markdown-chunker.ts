@@ -29,7 +29,7 @@ const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?/;
 function parseFrontmatter(md: string): { frontmatter: Record<string, unknown>; rest: string; bodyStartLine: number } {
   const m = md.match(FRONTMATTER_RE);
   if (!m) return { frontmatter: {}, rest: md, bodyStartLine: 1 };
-  const yaml = m[1];
+  const yaml = m[1] ?? "";
   const frontmatter: Record<string, unknown> = {};
   for (const line of yaml.split("\n")) {
     const colon = line.indexOf(":");
@@ -75,7 +75,7 @@ function splitSections(md: string, bodyStartLine: number): Section[] {
       const h3m = raw.match(/^###\s+(.+)/);
       if (h1m) {
         flush(lineNum - 1);
-        h1 = h1m[1].trim();
+        h1 = (h1m[1] ?? "").trim();
         h2 = "";
         h3 = "";
         current = { headingPath: `# ${h1}`, lineStart: lineNum, bodyLines: [raw] };
@@ -83,14 +83,14 @@ function splitSections(md: string, bodyStartLine: number): Section[] {
       }
       if (h2m) {
         flush(lineNum - 1);
-        h2 = h2m[1].trim();
+        h2 = (h2m[1] ?? "").trim();
         h3 = "";
         current = { headingPath: `# ${h1} > ## ${h2}`, lineStart: lineNum, bodyLines: [raw] };
         return;
       }
       if (h3m) {
         flush(lineNum - 1);
-        h3 = h3m[1].trim();
+        h3 = (h3m[1] ?? "").trim();
         current = { headingPath: `# ${h1} > ## ${h2} > ### ${h3}`, lineStart: lineNum, bodyLines: [raw] };
         return;
       }
