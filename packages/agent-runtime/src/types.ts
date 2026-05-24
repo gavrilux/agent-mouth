@@ -20,6 +20,12 @@ export interface ToolCall {
   name: string;
   arguments: Record<string, unknown>;
   result?: unknown;
+  // Phase 3 additions (optional — Phase 2 callers ignore them)
+  id?: string;
+  ok?: boolean;
+  error?: string;
+  costUsd?: number;
+  latencyMs?: number;
 }
 
 export interface RuntimeToolCall {

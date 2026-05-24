@@ -382,3 +382,77 @@ describe("handleRespondJob — idempotency (findRespondedFor)", () => {
     expect(auditArg.decision).toBe("blocked");
   });
 });
+
+describe("handleRespondJob — per-tool audit rows", () => {
+  it("writes one audit_log row per tool call when agent uses tools", async () => {
+    const ctx = makeCtx();
+
+    // Stub agent.respond to return two toolsCalled
+    vi.spyOn(ctx.agent, "respond").mockResolvedValue({
+      decision: "ready_to_send",
+      response: {
+        body: "hola respuesta",
+        reasoning: "used tools",
+        toolsCalled: [
+          {
+            id: "call-a",
+            name: "search_web",
+            arguments: { query: "test" },
+            ok: true,
+            costUsd: 0.001,
+            latencyMs: 120,
+            result: "ok",
+          },
+          {
+            id: "call-b",
+            name: "read_knowledge_file",
+            arguments: { path: "a/b.txt" },
+            ok: false,
+            error: "not_found",
+            costUsd: 0,
+            latencyMs: 5,
+            result: "error:not_found",
+          },
+        ],
+        tokens: { in: 100, out: 50, cached: 0 },
+        costUsd: 0.002,
+        metadata: { confidence: 0.9, shouldEscalate: false },
+      },
+    });
+
+    await handleRespondJob(makeData(), ctx);
+
+    // 2 tool.call rows + 1 agent.respond row = 3 total
+    expect(ctx.mocks.auditStore.write).toHaveBeenCalledTimes(3);
+
+    const calls = ctx.mocks.auditStore.write.mock.calls;
+
+    // First two rows are tool.call
+    expect(calls[0][0].action).toBe("tool.call");
+    expect(calls[0][0].details.tool_name).toBe("search_web");
+    expect(calls[0][0].details.tool_id).toBe("call-a");
+    expect(calls[0][0].details.success).toBe(true);
+    expect(calls[0][0].cost_usd).toBe(0.001);
+    expect(calls[0][0].latency_ms).toBe(120);
+
+    expect(calls[1][0].action).toBe("tool.call");
+    expect(calls[1][0].details.tool_name).toBe("read_knowledge_file");
+    expect(calls[1][0].details.tool_id).toBe("call-b");
+    expect(calls[1][0].details.success).toBe(false);
+    expect(calls[1][0].details.error).toBe("not_found");
+
+    // Third row is the final agent.respond
+    expect(calls[2][0].action).toBe("agent.respond");
+    expect(calls[2][0].decision).toBe("sent");
+  });
+
+  it("writes zero tool.call rows when agent returns no toolsCalled (Phase 2 path)", async () => {
+    const ctx = makeCtx();
+    // Default MockRuntime returns toolsCalled: [] — no stub needed
+    await handleRespondJob(makeData(), ctx);
+
+    // Only 1 audit row: agent.respond
+    expect(ctx.mocks.auditStore.write).toHaveBeenCalledTimes(1);
+    expect(ctx.mocks.auditStore.write.mock.calls[0][0].action).toBe("agent.respond");
+  });
+});

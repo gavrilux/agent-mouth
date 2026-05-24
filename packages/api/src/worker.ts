@@ -135,6 +135,29 @@ export async function handleRespondJob(
   });
   const latencyMs = Date.now() - t0;
 
+  // Persist one audit_log row per tool call. Order: tool.call rows first, then the final agent.respond row.
+  if (out.decision === "ready_to_send" || out.decision === "ready_to_draft") {
+    for (const tc of out.response.toolsCalled) {
+      const inputJson = JSON.stringify(tc.arguments);
+      await ctx.auditStore.write({
+        workspace_id: data.workspaceId,
+        action: "tool.call",
+        actor: "agent",
+        related_message_id: data.messageId,
+        related_contact_id: data.contactId,
+        cost_usd: tc.costUsd ?? 0,
+        latency_ms: tc.latencyMs ?? 0,
+        details: {
+          tool_name: tc.name,
+          tool_id: tc.id,
+          input_summary: inputJson.length > 200 ? inputJson.slice(0, 200) + "…" : inputJson,
+          success: tc.ok ?? false,
+          error: tc.error,
+        },
+      });
+    }
+  }
+
   if (out.decision === "ready_to_send") {
     const sent = await ctx.deps.transport.send({
       to: data.externalChatId,

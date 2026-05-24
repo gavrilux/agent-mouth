@@ -134,8 +134,13 @@ export class Agent {
             body: resp.finalOutput.body,
             reasoning: resp.finalOutput.reasoning,
             toolsCalled: toolLog.map((l) => ({
+              id: l.id,
               name: l.name,
               arguments: l.input,
+              ok: l.ok,
+              error: l.error,
+              costUsd: l.costUsd,
+              latencyMs: l.latencyMs,
               result: l.ok ? "ok" : `error:${l.error ?? "unknown"}`,
             })),
             tokens: { in: totalTokensIn, out: totalTokensOut, cached: totalCached },
