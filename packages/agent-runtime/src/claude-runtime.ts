@@ -1,5 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { AgentContext, AgentResponse, AgentRuntime, RuntimeConfig } from "./types.js";
+import type {
+  AgentContext,
+  AgentResponse,
+  AgentRuntime,
+  RuntimeConfig,
+  RespondTurnRequest,
+  RespondTurnResponse,
+} from "./types.js";
 import { buildSystemPrompt, buildUserMessages } from "./prompt-builder.js";
 
 const PRICING: Record<string, { in: number; out: number; cached_read: number }> = {
@@ -96,6 +103,80 @@ export class ClaudeRuntime implements AgentRuntime {
 
   async dispose(): Promise<void> {
     this.client = null;
+  }
+
+  async respondTurn(req: RespondTurnRequest): Promise<RespondTurnResponse> {
+    if (!this.client) throw new Error("ClaudeRuntime not initialized");
+
+    const respondTool = {
+      name: "respond_to_user",
+      description:
+        "Construye la respuesta final al usuario con metadatos. Llama esta tool cuando ya tengas la respuesta lista; no llames más herramientas externas.",
+      input_schema: req.respondToUserSchema as Anthropic.Tool["input_schema"],
+    };
+
+    const tools: Anthropic.Tool[] = [
+      ...req.tools.map((t) => ({
+        name: t.name,
+        description: t.description,
+        input_schema: t.input_schema as Anthropic.Tool["input_schema"],
+      })),
+      respondTool,
+    ];
+
+    const tool_choice: Anthropic.ToolChoice =
+      req.tools.length === 0
+        ? { type: "tool" as const, name: "respond_to_user" }
+        : { type: "any" as const };
+
+    const res = await this.client.messages.create({
+      model: req.model,
+      max_tokens: req.maxTokens,
+      system: req.systemPrompt,
+      messages: req.messages as Anthropic.MessageParam[],
+      tools,
+      tool_choice,
+    });
+
+    const tokens = {
+      in: res.usage.input_tokens,
+      out: res.usage.output_tokens,
+      cached: (res.usage as unknown as Record<string, unknown>).cache_read_input_tokens as number ?? 0,
+    };
+    const costUsd = this.computeCost(req.model, tokens);
+
+    const respondCall = res.content.find(
+      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === "respond_to_user",
+    );
+
+    if (respondCall) {
+      const input = respondCall.input as {
+        body: string;
+        reasoning: string;
+        confidence: number;
+        should_escalate: boolean;
+      };
+      return {
+        finalOutput: input,
+        stopReason: "end_turn",
+        tokens,
+        costUsd,
+      };
+    }
+
+    const otherCalls = res.content.filter(
+      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",
+    );
+    return {
+      toolCalls: otherCalls.map((c) => ({
+        id: c.id,
+        name: c.name,
+        input: c.input as Record<string, unknown>,
+      })),
+      stopReason: "tool_use",
+      tokens,
+      costUsd,
+    };
   }
 
   private computeCost(model: string, t: { in: number; out: number; cached: number }): number {
