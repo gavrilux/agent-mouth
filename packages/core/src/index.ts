@@ -25,3 +25,8 @@ export {
 export * from "./identity.js";
 export * from "./inbound.js";
 export * from "./stores.js";
+export * from "./knowledge.js";
+export * from "./vector.js";
+export * from "./web-search.js";
+export * from "./embeddings.js";
+export * from "./tools.js";

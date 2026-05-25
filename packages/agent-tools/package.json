@@ -1,0 +1,28 @@
+{
+  "name": "@agent-mouth/agent-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "test": "vitest run",
+    "lint": "biome check src tests"
+  },
+  "dependencies": {
+    "@agent-mouth/core": "workspace:*",
+    "gpt-tokenizer": "^2.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.0",
+    "typescript": "5.5.4",
+    "vitest": "^2.1.0"
+  }
+}

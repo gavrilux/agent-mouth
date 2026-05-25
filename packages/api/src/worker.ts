@@ -1,7 +1,8 @@
 import { Agent } from "@agent-mouth/agent";
 import { NotesUpdater } from "@agent-mouth/agent-notes-updater";
+import { bootstrapTools, resolveToolsForPolicy } from "@agent-mouth/agent-tools";
 import { resolveRuntime } from "@agent-mouth/agent-runtime";
-import type { Transport } from "@agent-mouth/core";
+import type { KnowledgeSource, Policy, Tool, Transport } from "@agent-mouth/core";
 import type {
   ContactStore,
   MessageStore,
@@ -9,8 +10,20 @@ import type {
   ThreadStore,
   WorkspaceStore,
 } from "@agent-mouth/core";
+import { resolveEmbeddingProvider } from "@agent-mouth/embeddings";
+import { MarkdownChunker, indexSource, resolveKnowledgeSource } from "@agent-mouth/knowledge-source";
 import { PgBossQueue } from "@agent-mouth/queue-pgboss";
-import { SupabaseAuditLogStore, SupabaseDraftStore } from "@agent-mouth/storage-supabase";
+import { SupabaseAuditLogStore, SupabaseDraftStore, SupabaseKnowledgeFilesRepo } from "@agent-mouth/storage-supabase";
+import { resolveVectorStore } from "@agent-mouth/vector-store";
+import { resolveWebSearchProvider } from "@agent-mouth/web-search";
+import { Client as PgClient } from "pg";
+import { logger } from "./logger.js";
+
+// Side-effect imports — register providers in their respective registries
+import "@agent-mouth/embeddings";
+import "@agent-mouth/web-search";
+import "@agent-mouth/vector-store";
+import "@agent-mouth/knowledge-source";
 
 export interface WorkerDeps {
   databaseUrl: string;
@@ -30,6 +43,14 @@ export interface WorkerDeps {
   workspaceStore: WorkspaceStore;
   policyEngine: PolicyEngine;
   transport: Transport;
+  // Phase 3 — when true, attempt to bootstrap tools at startup
+  enableAgentTools?: boolean;
+  // Workspace ID used to look up the knowledge source row (typically the default workspace)
+  defaultWorkspaceId?: string;
+  // Phase 3 — when true, register the knowledge.sync cron handler
+  enableKnowledgeSync?: boolean;
+  // Default 15 minutes
+  knowledgeSyncIntervalMin?: number;
 }
 
 export interface RespondJobData {
@@ -85,8 +106,95 @@ export async function startWorker(
     audit: auditStore,
   });
 
+  // ── Phase 3 bootstrap (tools + knowledge source providers) ──────────────────
+  // Any failure here falls back to Phase 2 (no tools) without crashing the worker.
+  let toolsResolver: ((policy: Policy) => Tool[]) | null = null;
+
+  if (deps.enableAgentTools && deps.defaultWorkspaceId) {
+    try {
+      const env = process.env;
+      const embedder = await resolveEmbeddingProvider("openai", env);
+      const webSearch = await resolveWebSearchProvider("tavily", env);
+      const vectorStore = await resolveVectorStore({ type: "pgvector", env });
+
+      // Load knowledge source config from DB — connect inside try/finally to
+      // guarantee pg.end() runs even if pg.connect() itself throws.
+      const pg = new PgClient({ connectionString: deps.databaseUrl, connectionTimeoutMillis: 10_000 });
+      let knowledgeSource: KnowledgeSource | null = null;
+      try {
+        await pg.connect();
+        const { rows } = await pg.query(
+          `SELECT id, type, config FROM knowledge_sources WHERE workspace_id = $1 LIMIT 1`,
+          [deps.defaultWorkspaceId],
+        );
+        if (rows.length > 0) {
+          knowledgeSource = await resolveKnowledgeSource({
+            type: rows[0].type as string,
+            config: rows[0].config as Record<string, unknown>,
+            env,
+          });
+        }
+      } finally {
+        await pg.end().catch(() => {});
+      }
+
+      if (knowledgeSource) {
+        bootstrapTools({
+          webSearchProvider: webSearch,
+          vectorStore,
+          embedder,
+          knowledgeSource,
+        });
+        toolsResolver = (policy) => resolveToolsForPolicy(policy);
+        logger.info(
+          "[phase-3] agent tools registered: search_web, search_knowledge, read_knowledge_file",
+        );
+      } else {
+        logger.warn(
+          "[phase-3] no knowledge_sources row for workspace — tools NOT registered, falling back to Phase 2",
+        );
+      }
+    } catch (err) {
+      logger.error({ err }, "[phase-3] tools bootstrap failed — continuing in Phase 2 mode");
+      toolsResolver = null;
+    }
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
+  // ── Phase 3 knowledge.sync recurring job ────────────────────────────────────
+  if (deps.enableKnowledgeSync && deps.defaultWorkspaceId) {
+    await queue.work("knowledge.sync", async () => {
+      await runKnowledgeSync({
+        databaseUrl: deps.databaseUrl,
+        workspaceId: deps.defaultWorkspaceId!,
+      });
+    });
+
+    const intervalMin = deps.knowledgeSyncIntervalMin ?? 15;
+    // Single fixed singletonKey so the cron tick and the boot kick share one
+    // queued slot — overlapping invocations dedupe against each other.
+    const SYNC_KEY = "knowledge.sync.singleton";
+    await queue.scheduleRecurring(
+      "knowledge.sync",
+      `*/${intervalMin} * * * *`,
+      {},
+      { singletonKey: SYNC_KEY },
+    );
+    // Trigger one immediate run so first boot doesn't wait the full interval.
+    await queue.send("knowledge.sync", {}, { singletonKey: SYNC_KEY });
+    logger.info({ intervalMin }, "[phase-3] knowledge.sync registered");
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   await queue.work<RespondJobData>("agent.respond", async (data) => {
-    await handleRespondJob(data, { agent, queue, deps, auditStore, draftStore });
+    await handleRespondJob(data, {
+      agent,
+      queue,
+      deps,
+      auditStore,
+      draftStore,
+      toolsResolver: toolsResolver ?? undefined,
+    });
   });
 
   if (deps.enableNotesUpdater) {
@@ -113,6 +221,7 @@ export async function handleRespondJob(
     deps: WorkerDeps;
     auditStore: SupabaseAuditLogStore;
     draftStore: SupabaseDraftStore;
+    toolsResolver?: (policy: Policy) => Tool[];
   },
 ): Promise<void> {
   const policy = await ctx.deps.policyEngine.evaluate({
@@ -124,6 +233,7 @@ export async function handleRespondJob(
   if (policy.policy === "silent") return;
 
   const t0 = Date.now();
+  const tools = ctx.toolsResolver ? ctx.toolsResolver(policy) : undefined;
   const out = await ctx.agent.respond({
     workspaceId: data.workspaceId,
     contactId: data.contactId,
@@ -132,8 +242,32 @@ export async function handleRespondJob(
     incomingMessageId: data.messageId,
     incomingContent: data.messageContent,
     policy,
+    tools,
   });
   const latencyMs = Date.now() - t0;
+
+  if (out.decision === "ready_to_send" || out.decision === "ready_to_draft") {
+    for (const tc of out.response.toolsCalled) {
+      const inputJson = JSON.stringify(tc.arguments);
+      const details: Record<string, unknown> = {
+        tool_name: tc.name,
+        input_summary: inputJson.length > 200 ? inputJson.slice(0, 200) + "…" : inputJson,
+        success: tc.ok ?? false,
+      };
+      if (tc.id !== undefined) details.tool_id = tc.id;
+      if (tc.error !== undefined) details.error = tc.error;
+      await ctx.auditStore.write({
+        workspace_id: data.workspaceId,
+        action: "tool.call",
+        actor: "agent",
+        related_message_id: data.messageId,
+        related_contact_id: data.contactId,
+        cost_usd: tc.costUsd ?? 0,
+        latency_ms: tc.latencyMs ?? 0,
+        details,
+      });
+    }
+  }
 
   if (out.decision === "ready_to_send") {
     const sent = await ctx.deps.transport.send({
@@ -172,7 +306,7 @@ export async function handleRespondJob(
         message_id: data.messageId,
         proposed_body: out.response.body,
         agent_reasoning: out.response.reasoning,
-        tools_called: [],
+        tools_called: out.response.toolsCalled as unknown as Array<Record<string, unknown>>,
       });
     }
     await ctx.auditStore.write({
@@ -208,5 +342,71 @@ export async function handleRespondJob(
       contactId: data.contactId,
       threadId: data.threadId,
     });
+  }
+}
+
+// ── Phase 3: runKnowledgeSync (exported for testability) ────────────────────
+
+export interface RunKnowledgeSyncArgs {
+  databaseUrl: string;
+  workspaceId: string;
+}
+
+export async function runKnowledgeSync(args: RunKnowledgeSyncArgs): Promise<void> {
+  const env = process.env;
+  // 10s connect timeout so a hung Supabase doesn't keep this job open forever.
+  const pg = new PgClient({ connectionString: args.databaseUrl, connectionTimeoutMillis: 10_000 });
+  try {
+    await pg.connect();
+    const { rows } = await pg.query(
+      `SELECT id, type, config FROM knowledge_sources WHERE workspace_id = $1`,
+      [args.workspaceId],
+    );
+    // Embedder + vector store don't depend on the row; resolve once per tick.
+    const embedder = await resolveEmbeddingProvider("openai", env);
+    const vectorStore = await resolveVectorStore({ type: "pgvector", env });
+    for (const row of rows) {
+      const sourceId = row.id as string;
+      try {
+        const source = await resolveKnowledgeSource({
+          type: row.type as string,
+          config: row.config as Record<string, unknown>,
+          env,
+        });
+        const filesRepo = new SupabaseKnowledgeFilesRepo({ connectionString: args.databaseUrl });
+        await filesRepo.init();
+        const chunker = new MarkdownChunker({
+          targetTokens: 400,
+          maxTokens: 500,
+          overlapTokens: 50,
+        });
+        try {
+          const result = await indexSource({
+            sourceId,
+            source,
+            embedder,
+            vectorStore,
+            chunker,
+            filesRepo,
+          });
+          await pg.query(
+            `UPDATE knowledge_sources SET last_synced_at = NOW(), last_sync_status = $1 WHERE id = $2`,
+            ["ok", sourceId],
+          );
+          logger.info({ sourceId, result }, "[phase-3] knowledge.sync done");
+        } finally {
+          await filesRepo.close().catch(() => {});
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await pg.query(
+          `UPDATE knowledge_sources SET last_sync_status = $1 WHERE id = $2`,
+          [`error: ${msg}`, sourceId],
+        );
+        logger.error({ err, sourceId }, "[phase-3] knowledge.sync source failed");
+      }
+    }
+  } finally {
+    await pg.end().catch(() => {});
   }
 }

@@ -1,4 +1,5 @@
 export * from "./types.js";
+export { buildSystemPrompt, buildUserMessages } from "./prompt-builder.js";
 export { MockRuntime } from "./mock-runtime.js";
 export type { MockRuntimeConfig } from "./mock-runtime.js";
 export { ClaudeRuntime } from "./claude-runtime.js";

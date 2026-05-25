@@ -9,7 +9,8 @@
     "./cli/serve": "./dist/cli/serve.js",
     "./cli/serve-http": "./dist/cli/serve-http.js",
     "./cli/init": "./dist/cli/init.js",
-    "./cli/join": "./dist/cli/join.js"
+    "./cli/join": "./dist/cli/join.js",
+    "./cli/seed-knowledge": "./dist/cli/seed-knowledge.js"
   },
   "files": ["dist/"],
   "scripts": {
@@ -21,6 +22,11 @@
     "@agent-mouth/agent": "workspace:*",
     "@agent-mouth/agent-runtime": "workspace:*",
     "@agent-mouth/agent-notes-updater": "workspace:*",
+    "@agent-mouth/agent-tools": "workspace:*",
+    "@agent-mouth/embeddings": "workspace:*",
+    "@agent-mouth/web-search": "workspace:*",
+    "@agent-mouth/vector-store": "workspace:*",
+    "@agent-mouth/knowledge-source": "workspace:*",
     "@agent-mouth/queue-pgboss": "workspace:*",
     "@agent-mouth/transport-telegram": "workspace:*",
     "@agent-mouth/storage-supabase": "workspace:*",
@@ -28,11 +34,13 @@
     "grammy": "^1.30.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "hono": "^4.0.0",
+    "pg": "^8.13.0",
     "pino": "^9.4.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^20.16.0",
+    "@types/pg": "^8.11.0",
     "msw": "^2.4.0",
     "typescript": "5.5.4",
     "vitest": "^2.1.0"

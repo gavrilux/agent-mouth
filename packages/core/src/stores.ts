@@ -156,4 +156,14 @@ export interface JobQueue {
   /** Returns the job id, or null if deduplicated by singletonKey. */
   send<T>(name: string, data: T, options?: { singletonKey?: string }): Promise<string | null>;
   work<T>(name: string, handler: (data: T) => Promise<void>): Promise<void>;
+  /**
+   * Schedule a recurring job using pg-boss cron syntax (standard 5-field).
+   * Pass a singletonKey to prevent overlapping ticks from running concurrently.
+   */
+  scheduleRecurring(
+    name: string,
+    cron: string,
+    data: object,
+    options?: { singletonKey?: string },
+  ): Promise<void>;
 }

@@ -9,3 +9,5 @@ export { SupabaseAuditLogStore } from "./audit-log-store.js";
 export type { SupabaseAuditLogStoreOptions } from "./audit-log-store.js";
 export { SupabaseDraftStore } from "./draft-store.js";
 export type { SupabaseDraftStoreOptions } from "./draft-store.js";
+export { SupabaseKnowledgeFilesRepo } from "./knowledge-files-repo.js";
+export type { SupabaseKnowledgeFilesRepoOptions } from "./knowledge-files-repo.js";
