@@ -51,6 +51,9 @@ export interface WorkerDeps {
   enableKnowledgeSync?: boolean;
   // Default 15 minutes
   knowledgeSyncIntervalMin?: number;
+  // Phase 3 — when set, daily 7am UTC health-check sends a Telegram alert to
+  // this chat ID if any threshold is breached.
+  alertChatId?: string;
 }
 
 export interface RespondJobData {
@@ -183,6 +186,26 @@ export async function startWorker(
     // Trigger one immediate run so first boot doesn't wait the full interval.
     await queue.send("knowledge.sync", {}, { singletonKey: SYNC_KEY });
     logger.info({ intervalMin }, "[phase-3] knowledge.sync registered");
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
+  // ── Phase 3 daily health-check (silent unless breach) ───────────────────────
+  if (deps.alertChatId && deps.defaultWorkspaceId) {
+    await queue.work("phase-3.health-check", async () => {
+      await runPhase3HealthCheck({
+        databaseUrl: deps.databaseUrl,
+        workspaceId: deps.defaultWorkspaceId!,
+        transport: deps.transport,
+        alertChatId: deps.alertChatId!,
+      });
+    });
+    await queue.scheduleRecurring(
+      "phase-3.health-check",
+      "0 7 * * *", // 7am UTC = 9am Madrid CEST (8am CET in winter)
+      {},
+      { singletonKey: "phase-3.health-check.singleton" },
+    );
+    logger.info("[phase-3] health-check cron registered (7am UTC daily)");
   }
   // ────────────────────────────────────────────────────────────────────────────
 
@@ -406,6 +429,91 @@ export async function runKnowledgeSync(args: RunKnowledgeSyncArgs): Promise<void
         logger.error({ err, sourceId }, "[phase-3] knowledge.sync source failed");
       }
     }
+  } finally {
+    await pg.end().catch(() => {});
+  }
+}
+
+// ── Phase 3: daily health-check (Telegram alert only if breach) ─────────────
+
+export interface RunPhase3HealthCheckArgs {
+  databaseUrl: string;
+  workspaceId: string;
+  transport: Transport;
+  alertChatId: string;
+}
+
+const ALERT_ERR_RATIO = 0.2;
+const ALERT_COST_USD = 0.5;
+const ALERT_LATENCY_MS = 30000;
+const ALERT_SYNC_STALE_MIN = 45;
+
+export async function runPhase3HealthCheck(args: RunPhase3HealthCheckArgs): Promise<void> {
+  const pg = new PgClient({
+    connectionString: args.databaseUrl,
+    connectionTimeoutMillis: 10_000,
+  });
+  try {
+    await pg.connect();
+    const stats = await pg.query(
+      `SELECT
+         count(*) FILTER (WHERE action='tool.call') AS calls,
+         count(*) FILTER (WHERE action='tool.call' AND (details->>'success')::bool = true) AS ok,
+         count(*) FILTER (WHERE action='tool.call' AND (details->>'success')::bool = false) AS err,
+         coalesce(sum(cost_usd) FILTER (WHERE action='tool.call'), 0)::float AS cost_usd,
+         coalesce(max(latency_ms) FILTER (WHERE action='tool.call'), 0) AS max_ms,
+         coalesce(avg(latency_ms) FILTER (WHERE action='tool.call'), 0)::int AS avg_ms
+       FROM audit_log
+       WHERE workspace_id = $1
+         AND created_at > now() - interval '24 hours'`,
+      [args.workspaceId],
+    );
+    const sync = await pg.query(
+      `SELECT last_synced_at, last_sync_status
+       FROM knowledge_sources WHERE workspace_id = $1 LIMIT 1`,
+      [args.workspaceId],
+    );
+
+    const s = stats.rows[0];
+    const totalCalls = Number(s.calls);
+    const errCount = Number(s.err);
+    const errRatio = totalCalls > 0 ? errCount / totalCalls : 0;
+    const cost = Number(s.cost_usd);
+    const maxMs = Number(s.max_ms);
+    const avgMs = Number(s.avg_ms);
+
+    const alerts: string[] = [];
+    if (totalCalls > 0 && errRatio > ALERT_ERR_RATIO) {
+      alerts.push(`🔴 err ratio ${(errRatio * 100).toFixed(0)}% (${errCount}/${totalCalls})`);
+    }
+    if (cost > ALERT_COST_USD) {
+      alerts.push(`🟠 cost $${cost.toFixed(4)} (cap $1/día)`);
+    }
+    if (maxMs > ALERT_LATENCY_MS) {
+      alerts.push(`🟠 max latency ${maxMs}ms (timeout=${ALERT_LATENCY_MS})`);
+    }
+    const syncRow = sync.rows[0];
+    if (syncRow?.last_sync_status?.startsWith("error:")) {
+      alerts.push(`🔴 knowledge.sync FAILED: ${syncRow.last_sync_status.slice(0, 120)}`);
+    }
+    if (syncRow?.last_synced_at) {
+      const ageMin = (Date.now() - new Date(syncRow.last_synced_at).getTime()) / 60_000;
+      if (ageMin > ALERT_SYNC_STALE_MIN) {
+        alerts.push(`🟠 sync stale: hace ${Math.round(ageMin)}min`);
+      }
+    }
+
+    logger.info(
+      { totalCalls, errRatio, cost, maxMs, avgMs, alerts: alerts.length },
+      "[phase-3] health-check ran",
+    );
+
+    if (alerts.length === 0) return; // silent — todo bien
+
+    const body =
+      `⚠️ agent-mouth Phase 3 — alertas últimas 24h:\n\n${alerts.join("\n")}\n\n` +
+      `Stats: ${totalCalls} tool calls, $${cost.toFixed(4)}, avg ${avgMs}ms, max ${maxMs}ms`;
+    await args.transport.send({ to: args.alertChatId, body });
   } finally {
     await pg.end().catch(() => {});
   }

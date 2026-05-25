@@ -128,6 +128,9 @@ export async function serveHttp(): Promise<void> {
           ? Number(process.env.KNOWLEDGE_SYNC_INTERVAL_MIN)
           : undefined,
         defaultWorkspaceId: workspace.id,
+        // Phase 3 daily health-check sends alerts to the same Telegram chat
+        // the bot already replies to (Gavrilo's private chat).
+        alertChatId: config.telegram?.chat_id,
         contactStore,
         messageStore,
         threadStore,
