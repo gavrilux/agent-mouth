@@ -4,7 +4,7 @@ import { parseSeedKnowledgeArgs } from "../src/cli/seed-knowledge.js";
 describe("parseSeedKnowledgeArgs", () => {
   it("returns defaults when no flags", () => {
     const a = parseSeedKnowledgeArgs([]);
-    expect(a.repoUrl).toBe("git@github.com:gavrilux/CerebroDigital.git");
+    expect(a.repoUrl).toBe("git@github.com:gavrilux/cerebro-digital.git");
     expect(a.branch).toBe("main");
     expect(a.localPath).toBe("/data/knowledge/cerebro");
     expect(a.force).toBe(false);

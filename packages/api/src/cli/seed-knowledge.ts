@@ -16,7 +16,7 @@ export function parseSeedKnowledgeArgs(argv: string[]): SeedKnowledgeArgs {
     return i >= 0 && i + 1 < argv.length ? argv[i + 1] : undefined;
   };
   return {
-    repoUrl: get("--repo-url") ?? "git@github.com:gavrilux/CerebroDigital.git",
+    repoUrl: get("--repo-url") ?? "git@github.com:gavrilux/cerebro-digital.git",
     branch: get("--branch") ?? "main",
     localPath: get("--local-path") ?? "/data/knowledge/cerebro",
     workspaceId: get("--workspace-id"),
