@@ -74,13 +74,15 @@ export class GitKnowledgeSource implements KnowledgeSource {
       writeFileSync(keyFile, key.endsWith("\n") ? key : key + "\n");
       chmodSync(keyFile, 0o600);
       this.sshCommand = `ssh -i ${keyFile} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes`;
+      // simple-git v3 does not reliably forward opts.env.GIT_SSH_COMMAND to the
+      // spawned git child. Set it on process.env so the child inherits it.
+      process.env.GIT_SSH_COMMAND = this.sshCommand;
     }
   }
 
   private getGit(baseDir?: string): SimpleGit {
-    const opts: { baseDir?: string; env?: NodeJS.ProcessEnv } = {};
+    const opts: { baseDir?: string } = {};
     if (baseDir) opts.baseDir = baseDir;
-    if (this.sshCommand) opts.env = { ...process.env, GIT_SSH_COMMAND: this.sshCommand };
     return simpleGit(opts);
   }
 
