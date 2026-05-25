@@ -9,7 +9,8 @@
     "./cli/serve": "./dist/cli/serve.js",
     "./cli/serve-http": "./dist/cli/serve-http.js",
     "./cli/init": "./dist/cli/init.js",
-    "./cli/join": "./dist/cli/join.js"
+    "./cli/join": "./dist/cli/join.js",
+    "./cli/seed-knowledge": "./dist/cli/seed-knowledge.js"
   },
   "files": ["dist/"],
   "scripts": {

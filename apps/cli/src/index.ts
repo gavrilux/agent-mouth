@@ -22,8 +22,12 @@ async function main() {
       const { join } = await import("@agent-mouth/api/cli/join");
       return join(args);
     }
+    case "seed-knowledge": {
+      const { seedKnowledge } = await import("@agent-mouth/api/cli/seed-knowledge");
+      return seedKnowledge(args);
+    }
     default:
-      console.error("Usage: agent-mouth <serve|serve-http|init|join>");
+      console.error("Usage: agent-mouth <serve|serve-http|init|join|seed-knowledge>");
       process.exit(1);
   }
 }
