@@ -17,6 +17,7 @@ Conceptual model: **the agent has its own email identity**, just like it has its
 
 ### Goals
 - The agent can send and receive email via Gmail API on its own account.
+- **Sub-second inbound latency via Gmail Pub/Sub push** (webhook), with polling every 10 minutes as safety net for watch expiry or Pub/Sub outage.
 - Inbound emails flow through the same `processInbound` router as Telegram messages.
 - `read_inbox` MCP tool returns Telegram + Email messages mixed by timestamp.
 - `send_message` MCP tool can target either channel.
@@ -26,7 +27,6 @@ Conceptual model: **the agent has its own email identity**, just like it has its
 
 ### Non-goals (Phase 1b)
 - IMAP / Outlook / other providers (only Gmail; drivers are pluggable but only `GmailDriver` ships).
-- Gmail Pub/Sub push notifications (we use polling with `historyId`; push is Phase 1c if ever).
 - Multi-account per workspace (architecture supports N email channels per workspace, but Phase 1b ships with 1 account).
 - Heuristic identity merge (e.g. by display_name). Only exact email-address match merges.
 - Email-specific UI (no dashboard for managing email; CLI + SQL only).
@@ -38,7 +38,7 @@ Conceptual model: **the agent has its own email identity**, just like it has its
 |---|---|---|
 | 1 | Driver-based architecture (`EmailDriver` interface, `GmailDriver` impl) | Future-proofs for IMAP/Outlook without rewrite |
 | 2 | Gmail API only in Phase 1b | Vision doc says Gmail; user has Google Workspace; simplest path |
-| 3 | Polling with `historyId` every 30s | Simple, $0, reuses pattern from Telegram getUpdates; latency 30s acceptable |
+| 3 | **Webhook (Gmail Pub/Sub push) primary + polling fallback every 10min** | Sub-second latency, ~0 idle API calls. Polling kept as safety net for watch expiry (max 7 days) and Pub/Sub outage. Cost: $0 (Pub/Sub free tier covers personal-volume mailboxes) |
 | 4 | Agent has its own email account (`gavrilux.agent@gmail.com`), not user's | Mirrors `@Gavrilux_bot` model; zero risk of accidentally replying to HR/legal/clients |
 | 5 | Free Gmail account (not Workspace seat) | $0/mo; promote to Workspace if revenue justifies |
 | 6 | Policy default `auto` | Volume is tiny (only direct contacts), risk low because user's inbox isn't touched |
@@ -46,56 +46,90 @@ Conceptual model: **the agent has its own email identity**, just like it has its
 | 8 | Open to all destinations (no outbound whitelist) | User trusts budget cap + max_tool_calls; whitelist would just slow dogfooding |
 | 9 | Refresh tokens encrypted at rest (AES-256-GCM) | Defense in depth if Supabase row leaks |
 | 10 | Kill switch via `ENABLE_EMAIL_AUTO` env var | Allows instant degrade to drafts-only without redeploy |
+| 11 | Pub/Sub webhook validates Google-signed JWT before processing | Prevents anyone from POST-spoofing notifications to `/email-webhook` |
+| 12 | Watch renewal cron every 6 days (1 day safety margin before 7-day expiry) | Pub/Sub `watch` expires; missing renewal = no notifications = polling fallback covers gap |
 
 ## 3. Architecture overview
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                       agent-mouth.fly.dev                              │
-│                                                                        │
-│  ┌──────────────┐    ┌────────────────────────────────────────────┐   │
-│  │ HTTP server  │    │              pg-boss worker                │   │
-│  │              │    │                                            │   │
-│  │ /telegram-   │    │  ┌──────────────┐   ┌──────────────────┐  │   │
-│  │  webhook ────┼────┼─►│ router       │   │  cron jobs       │  │   │
-│  │              │    │  │ processInbound│  │                  │  │   │
-│  │ /mcp         │    │  └──────┬───────┘   │ knowledge.sync   │  │   │
-│  │ /health      │    │         │           │  (15min)         │  │   │
-│  └──────────────┘    │         ▼           │                  │  │   │
-│                      │  ┌──────────────┐   │ phase3.health    │  │   │
-│                      │  │ agent.respond│   │  (daily 7am)     │  │   │
-│                      │  │  job         │   │                  │  │   │
-│                      │  └──────────────┘   │ email.poll  NEW  │  │   │
-│                      │                     │  (every 30s)     │  │   │
-│                      │                     └──────────┬───────┘  │   │
-│                      └────────────────────────────────┼──────────┘   │
-└─────────────────────────────────────────────────────────┼──────────────┘
-                                                          │
-                                                          ▼
-                                              ┌────────────────────┐
-                                              │  EmailTransport    │
-                                              │  + GmailDriver     │
-                                              └────────────────────┘
+   GMAIL CLOUD                            agent-mouth.fly.dev
+  ──────────────                        ───────────────────────
+
+  ┌─────────────┐   message arrives    ┌────────────────────────────┐
+  │   Gmail     │ ───────────────────► │  HTTP server               │
+  │  mailbox    │   pubsub topic       │                            │
+  └─────────────┘                      │  /telegram-webhook         │
+        │                              │  /email-webhook       NEW  │
+        │                              │  /mcp · /health            │
+        ▼                              └──────────┬─────────────────┘
+  ┌─────────────┐                                 │ enqueue job
+  │ Pub/Sub     │ ──── HTTPS POST + JWT ────────► │
+  │ topic +     │      with {emailAddress,        ▼
+  │ subscription│       historyId}        ┌────────────────────────┐
+  └─────────────┘                          │  pg-boss worker         │
+                                           │                         │
+                                           │  ┌──────────────────┐   │
+                                           │  │ email.fetch job  │   │
+                                           │  │  (per webhook)   │   │
+                                           │  └────────┬─────────┘   │
+                                           │           │             │
+                                           │           ▼             │
+                                           │  ┌──────────────────┐   │
+                                           │  │ EmailTransport   │   │
+                                           │  │ + GmailDriver    │   │
+                                           │  └────────┬─────────┘   │
+                                           │           │             │
+                                           │           ▼             │
+                                           │  ┌──────────────────┐   │
+                                           │  │ gmail→inbound    │   │
+                                           │  │ → processInbound │   │
+                                           │  └──────────────────┘   │
+                                           │                         │
+                                           │  Cron jobs:             │
+                                           │  · knowledge.sync (15m) │
+                                           │  · phase3.health (daily)│
+                                           │  · email.watch.renew    │
+                                           │    (every 6 days)  NEW  │
+                                           │  · email.poll.fallback  │
+                                           │    (every 10 min)  NEW  │
+                                           └─────────────────────────┘
 ```
 
-The polling job receives Gmail messages → converts to the same `InboundMessage` schema Telegram uses → existing `router.processInbound` handles them unchanged. The agent downstream is already channel-agnostic.
+**Primary path (webhook):** Gmail publishes to Pub/Sub topic → push subscription POSTs to `/email-webhook` → endpoint validates Google-signed JWT → enqueues `email.fetch` job with `{email_address, historyId}` → worker fetches new messages → `processInbound` (same router as Telegram). Latency < 1s.
+
+**Safety net (polling):** `email.poll.fallback` runs every 10 minutes. Same logic as primary path but iterates all active tokens. Catches messages missed during Pub/Sub outages or while watch was expired.
+
+**Watch renewal:** `email.watch.renew` cron runs every 6 days (1-day margin before the 7-day expiry of `gmail.users.watch`) and re-issues the watch for each active token.
 
 ### Components (new)
 1. `@agent-mouth/transport-email` — package with `EmailTransport` + `EmailDriver` interface + `GmailDriver` + `gmailMessageToInbound`
-2. Recurring job `email.poll` in worker (every 30s, `singletonKey="email.poll.singleton"`)
-3. Supabase table `email_oauth_tokens` + migration 0005 + `SupabaseEmailTokenStore`
-4. Supabase column `contacts.metadata jsonb DEFAULT '{}'`
-5. CLI command `email:setup` — OAuth flow on local port
+2. HTTP endpoint `POST /email-webhook` in `serve-http.ts` with Google JWT validation
+3. Worker job `email.fetch` — fires per webhook payload, idempotent on `(email_address, historyId)`
+4. Recurring job `email.poll.fallback` (every 10min, `singletonKey="email.poll.singleton"`)
+5. Recurring job `email.watch.renew` (every 6 days, `singletonKey="email.watch.renew.singleton"`)
+6. Supabase table `email_oauth_tokens` + migration 0005 + `SupabaseEmailTokenStore`
+7. Supabase column `contacts.metadata jsonb DEFAULT '{}'`
+8. CLI command `email:setup` — OAuth flow + initial `gmail.users.watch` call
 
 ### Components (modified)
 1. `IdentityResolver.resolve()` — for email, check `metadata.email_addresses[]` before creating new Contact
 2. `send_message` MCP tool — accepts optional `channel` and `subject` params
-3. `serve-http.ts` — bootstraps `EmailTransport` + `email.poll` cron
+3. `serve-http.ts` — bootstraps `EmailTransport` + webhook endpoint + cron jobs
 4. `TransportRegistry` (new) — registry that maps `ChannelType` → `Transport` instance
+
+### External infrastructure (one-time setup)
+1. Google Cloud Project (`agent-mouth-email` or reuse existing GCP project)
+2. Pub/Sub API enabled
+3. Pub/Sub topic: `projects/<proj>/topics/gmail-notifications`
+4. Pub/Sub push subscription: `projects/<proj>/subscriptions/gmail-push-agent-mouth`
+   - Push endpoint: `https://agent-mouth.fly.dev/email-webhook`
+   - Authentication: OIDC token with service account
+5. Service account with `roles/pubsub.publisher` for Gmail's service agent
+6. IAM: grant `gmail-api-push@system.gserviceaccount.com` publisher rights on the topic
 
 ## 4. Data flows
 
-### 4.1 Setup OAuth (once per email account)
+### 4.1 Setup OAuth + watch (once per email account)
 
 ```
 1. User: pnpm cli email:setup
@@ -105,32 +139,82 @@ The polling job receives Gmail messages → converts to the same `InboundMessage
 4. Google redirects → CLI captures code in ephemeral local HTTP server
 5. CLI exchanges code → {access_token, refresh_token, expires_in}
 6. CLI calls gmail.users.getProfile → email_address + initial historyId
-7. CLI inserts in Supabase email_oauth_tokens:
+7. CLI calls gmail.users.watch({
+     topicName: "projects/<proj>/topics/gmail-notifications",
+     labelIds: ["INBOX"],
+     labelFilterAction: "include"
+   }) → returns {historyId, expiration (epoch ms)}
+8. CLI inserts in Supabase email_oauth_tokens:
      {workspace_id, channel_id, email_address, refresh_token_encrypted (AES-GCM),
-      scopes, last_history_id, created_at, updated_at}
-8. CLI prints success
+      scopes, last_history_id, watch_expiration, created_at, updated_at}
+9. CLI prints success + expiration ETA
 ```
 
-### 4.2 Inbound email (every 30s)
+### 4.2 Inbound email — primary path (webhook, sub-second)
 
 ```
-1. pg-boss cron fires `email.poll` (singletonKey="email.poll.singleton")
-2. Worker.handleEmailPoll:
+1. Email arrives in gavrilux.agent@gmail.com INBOX
+2. Gmail publishes message to Pub/Sub topic with:
+   data: base64({"emailAddress":"gavrilux.agent@gmail.com","historyId":"12345"})
+3. Pub/Sub push subscription POSTs to https://agent-mouth.fly.dev/email-webhook
+   with header Authorization: Bearer <Google-signed JWT>
+4. Endpoint handler:
+   a. Validate JWT (iss=accounts.google.com, aud=https://agent-mouth.fly.dev/email-webhook,
+      signature against Google public keys cached for 1h)
+      → if invalid: return 401, log warn
+   b. Parse base64 data → {emailAddress, historyId}
+   c. Idempotency check: SELECT 1 FROM email_webhook_events
+      WHERE email_address=$1 AND history_id=$2 → if exists: return 200 (no-op)
+      Otherwise INSERT (email_address, history_id, received_at)
+   d. Enqueue worker job `email.fetch` with payload {emailAddress, historyId}
+      using singletonKey=`email.fetch.${emailAddress}.${historyId}` for dedup
+   e. Return 200 immediately (Pub/Sub retries on non-2xx)
+5. Worker.handleEmailFetch({emailAddress, historyId}):
+   - SELECT * FROM email_oauth_tokens WHERE email_address=$1 AND status='active'
+   - refresh access_token if expired
+   - driver.fetchNewMessages({last_cursor: max(token.last_history_id, payload.historyId - safe_window)})
+   - persist + processInbound (same as polling flow below)
+   - save new historyId to token
+```
+
+### 4.3 Inbound email — safety net (polling every 10min)
+
+```
+1. pg-boss cron fires `email.poll.fallback` (singletonKey="email.poll.singleton")
+2. Worker.handleEmailPollFallback:
    a. SELECT * FROM email_oauth_tokens WHERE status='active'
    b. For each token:
       - refresh access_token if expired
-      - driver.fetchNewMessages({last_cursor: historyId})
+      - driver.fetchNewMessages({last_cursor: token.last_history_id})
         → gmail.users.history.list(startHistoryId=last)
-        → for each "messageAdded" history item:
-            gmail.users.messages.get(id, format="full")
-            → parse headers (From, To, Subject, Message-ID, In-Reply-To, References, Date)
-            → parse body (text/plain first, fallback text/html → strip)
+        → for each "messageAdded" item:
+            gmail.users.messages.get(id, format="full") → parse headers + body
       - returns NormalizedEmail[] + next_cursor
       - save next_cursor to email_oauth_tokens.last_history_id
 3. For each NormalizedEmail:
    - gmailMessageToInbound() → InboundMessage{channel_type:"email", ...}
    - InboundMessageSchema.safeParse()
    - processInbound(parsed, routerDeps)  ← SAME router as Telegram
+```
+
+Polling catches messages missed when:
+- Pub/Sub had outage
+- `gmail.users.watch` expired and renewal failed
+- The webhook handler errored before saving historyId
+
+Idempotency on `UNIQUE (channel_id, external_id)` ensures no duplicate persistence even if both paths see the same message.
+
+### 4.4 Watch renewal (every 6 days)
+
+```
+1. pg-boss cron fires `email.watch.renew` (singletonKey="email.watch.renew.singleton")
+2. Worker.handleWatchRenew:
+   a. SELECT * FROM email_oauth_tokens WHERE status='active'
+   b. For each token:
+      - refresh access_token if expired
+      - gmail.users.watch({topicName, labelIds:["INBOX"]})
+      - save new watch_expiration to email_oauth_tokens
+      - if call fails: log error, mark status='error' if 3 consecutive failures, Telegram alert
 ```
 
 ### 4.3 Identity auto-merge
@@ -287,8 +371,10 @@ CREATE TABLE IF NOT EXISTS email_oauth_tokens (
   refresh_token_encrypted text NOT NULL,
   scopes text[] NOT NULL DEFAULT ARRAY[]::text[],
   last_history_id text,
+  watch_expiration timestamptz,                    -- when gmail.users.watch will expire
   status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','error','revoked')),
   last_error text,
+  consecutive_renewal_failures int NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (workspace_id, email_address)
@@ -296,6 +382,21 @@ CREATE TABLE IF NOT EXISTS email_oauth_tokens (
 ALTER TABLE email_oauth_tokens ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "service_role full access" ON email_oauth_tokens
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- email_webhook_events for idempotency (dedup Pub/Sub at-least-once delivery)
+CREATE TABLE IF NOT EXISTS email_webhook_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  email_address text NOT NULL,
+  history_id text NOT NULL,
+  received_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (email_address, history_id)
+);
+ALTER TABLE email_webhook_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role full access" ON email_webhook_events
+  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+-- Optional: TTL cleanup (keep 30 days)
+CREATE INDEX IF NOT EXISTS email_webhook_events_received_at_idx
+  ON email_webhook_events (received_at);
 
 -- dedup index for messages
 CREATE UNIQUE INDEX IF NOT EXISTS messages_channel_external_uniq
@@ -340,10 +441,14 @@ Behavior: if `channel` missing → infer from origin Thread. If no origin Thread
 ```
 GOOGLE_OAUTH_CLIENT_ID=...
 GOOGLE_OAUTH_CLIENT_SECRET=...
+GOOGLE_PUBSUB_TOPIC=projects/<proj>/topics/gmail-notifications
+GOOGLE_PUBSUB_SERVICE_ACCOUNT_EMAIL=<sa>@<proj>.iam.gserviceaccount.com  # expected aud/iss in JWT
+EMAIL_WEBHOOK_AUDIENCE=https://agent-mouth.fly.dev/email-webhook         # must match JWT aud
 AGENT_MOUTH_TOKEN_ENCRYPTION_KEY=<32 bytes hex>   # openssl rand -hex 32
 ENABLE_EMAIL_TRANSPORT=true                       # master switch
 ENABLE_EMAIL_AUTO=true                            # kill switch → silent if false
-EMAIL_POLL_INTERVAL_SEC=30
+EMAIL_POLL_FALLBACK_INTERVAL_MIN=10               # safety-net polling
+EMAIL_WATCH_RENEW_INTERVAL_DAYS=6                 # watch refresh cron
 ```
 
 ## 6. Error handling & resilience
@@ -354,8 +459,13 @@ EMAIL_POLL_INTERVAL_SEC=30
 | Refresh token expired (>6mo inactive) | `invalid_grant` | same |
 | Network error on refresh | 5xx/timeout | retry 3× exponential (1/3/9s); fail → `status='error'` |
 | Scope insufficient | 403 on send | `status='error'`, alert: "re-run email:setup" |
-| historyId expired | 404 | fallback to `messages.list(q="after:<unix>")` + reset historyId |
-| Double poll | (singletonKey ensures no doubles) | UNIQUE INDEX prevents duplicate messages anyway |
+| historyId expired (>7d idle) | 404 on history.list | fallback to `messages.list(q="after:<unix>")` + reset historyId |
+| Double webhook delivery | Pub/Sub at-least-once | `email_webhook_events` UNIQUE (email_address, history_id) → no-op on duplicate |
+| Webhook JWT invalid / signature mismatch | JWT validation throws | return 401, log warn (likely attack attempt) |
+| Webhook payload malformed (no historyId) | Zod parse fails | return 400, log warn |
+| `gmail.users.watch` expired (no renewal in 7 days) | No webhooks received | fallback polling covers the gap; alert if no webhooks for >24h |
+| Watch renewal API call fails | 5xx | increment `consecutive_renewal_failures`; ≥3 failures → `status='error'` + alert |
+| Pub/Sub outage (no webhooks) | Heartbeat: no webhook in 30min | fallback polling covers; if 6h without webhooks, alert |
 | Gmail rate limit | 429 | exponential backoff, skip cycle if persistent |
 | NDR (bounce) | inbound email tagged as bounce | persist + alert user |
 | Malformed MIME on send | catch | log error, draft persisted as `error`, no send |
@@ -366,24 +476,30 @@ EMAIL_POLL_INTERVAL_SEC=30
 
 ## 7. Testing strategy
 
-### 7.1 Unit (vitest, ~45 tests total)
+### 7.1 Unit (vitest, ~55 tests total)
 
-- `transport-email/gmail-driver` (~10): fetchNewMessages, send MIME, refresh, history fallback
+- `transport-email/gmail-driver` (~10): fetchNewMessages, send MIME, refresh, history fallback, watch call
 - `transport-email/normalize` (~5): plaintext, html-only, multipart, base64url, RFC2047
 - `transport-email/mime` (~4): build with In-Reply-To, References, UTF-8, quoted-printable
 - `transport-email/oauth/crypto` (~3): AES-GCM roundtrip, wrong key, base64 encoding
 - `transport-email/oauth/google` (~3): URL builder, code exchange, refresh
+- `transport-email/webhook/jwt` (~5): valid JWT accepted, wrong issuer rejected, wrong audience rejected, expired token rejected, mismatched signature rejected
+- `transport-email/webhook/payload` (~3): valid Pub/Sub envelope parsed, malformed envelope returns 400, missing historyId returns 400
 - `core/email` schemas (~5): EmailToken, NormalizedEmail, Contact.metadata, InboundMessage with email type
-- `storage-supabase/email-token-store` (~3): list/upsert/updateCursor/markError
+- `storage-supabase/email-token-store` (~4): list/upsert/updateCursor/markError + watch_expiration update
+- `storage-supabase/email-webhook-events-store` (~2): insert + idempotency check
 - `storage-supabase/identity-resolver` (~3): exact match, metadata merge, no match
+- `api/email-webhook` endpoint (~4): valid push → enqueue job, duplicate historyId → no-op, invalid JWT → 401, malformed → 400
 - `api/send-message` (~4): with channel:"email", with "telegram", infer from thread, error no context
 - `api/link-email-to-contact` (~2)
 - `api/email-setup` CLI (~3): OAuth flow happy path, port retry, code expired
 
 ### 7.2 Integration (vitest, Supabase real)
 
-- `email-flow.test.ts`: insert fake EmailToken → mock Gmail HTTP → `handleEmailPoll()` → assert messages/contact/identity/audit
+- `email-flow-webhook.test.ts`: insert fake EmailToken → mock Pub/Sub POST to `/email-webhook` with valid JWT → assert `email.fetch` job enqueued → run job → assert messages/contact/identity/audit
+- `email-flow-polling.test.ts`: same setup → simulate Pub/Sub absence → fallback poll → same assertions (idempotency: webhook + poll see same message → only 1 row)
 - `auto-merge.test.ts`: pre-populated Contact with `metadata.email_addresses` → inbound email → assert merge
+- `watch-renewal.test.ts`: simulate cron tick → assert `gmail.users.watch` called → `watch_expiration` updated
 
 ### 7.3 E2E (Gate 1b)
 
@@ -397,28 +513,50 @@ EMAIL_POLL_INTERVAL_SEC=30
 
 ### 8.1 Pre-deploy checklist
 
-- [ ] Google Cloud Console: OAuth client created, `http://localhost:53682/callback` whitelisted
+**Google Cloud setup (one-time):**
+- [ ] GCP project created (`agent-mouth-email` or reuse existing)
+- [ ] Pub/Sub API enabled
+- [ ] Pub/Sub topic `projects/<proj>/topics/gmail-notifications` created
+- [ ] Pub/Sub push subscription `projects/<proj>/subscriptions/gmail-push-agent-mouth` created
+  - Push endpoint: `https://agent-mouth.fly.dev/email-webhook`
+  - Authentication: OIDC token with service account
+  - Audience: `https://agent-mouth.fly.dev/email-webhook`
+- [ ] Service account created for push subscription
+- [ ] IAM: `gmail-api-push@system.gserviceaccount.com` granted `roles/pubsub.publisher` on the topic
+
+**Gmail account setup:**
 - [ ] `gavrilux.agent@gmail.com` exists with 2FA
+- [ ] Google Cloud Console: OAuth client (`Web application`) with `http://localhost:53682/callback` as redirect URI
+
+**Local secrets:**
 - [ ] `AGENT_MOUTH_TOKEN_ENCRYPTION_KEY` generated (`openssl rand -hex 32`)
-- [ ] CLI `email:setup` run locally → token in Supabase
-- [ ] Migration 0005 applied in Supabase prod
-- [ ] Secrets in Fly: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `AGENT_MOUTH_TOKEN_ENCRYPTION_KEY`, `ENABLE_EMAIL_TRANSPORT=true`, `ENABLE_EMAIL_AUTO=false` (start in silent)
+
+**Code quality:**
 - [ ] `pnpm -r test` ≥95% pass
 - [ ] `pnpm -r typecheck` clean
 
 ### 8.2 Deploy sequence
 
 ```
-1. Apply migration 0005 in Supabase                     (idempotent)
-2. flyctl secrets set <env vars>                        (with ENABLE_EMAIL_AUTO=false)
-3. flyctl deploy                                        (rolling)
-4. flyctl logs | grep "email.poll started"              (verify boot)
-5. pnpm cli email:setup (local, points to Fly DB)       (register gavrilux.agent token)
-6. Smoke: send manual email → message row in <60s
-7. flyctl secrets set ENABLE_EMAIL_AUTO=true
-8. flyctl deploy                                        (apply secret)
-9. Run Gate 1b E2E
-10. If Gate passes → merge feat/phase-1b → main → tag v0.X
+ 1. Apply migration 0005 in Supabase                       (idempotent)
+ 2. flyctl secrets set GOOGLE_OAUTH_CLIENT_ID
+                        GOOGLE_OAUTH_CLIENT_SECRET
+                        GOOGLE_PUBSUB_TOPIC
+                        GOOGLE_PUBSUB_SERVICE_ACCOUNT_EMAIL
+                        EMAIL_WEBHOOK_AUDIENCE
+                        AGENT_MOUTH_TOKEN_ENCRYPTION_KEY
+                        ENABLE_EMAIL_TRANSPORT=true
+                        ENABLE_EMAIL_AUTO=false              (start silent)
+ 3. flyctl deploy                                            (rolling)
+ 4. flyctl logs | grep "email transport bootstrapped"        (verify boot)
+ 5. pnpm cli email:setup (local, points to Fly DB)           (OAuth + watch initial call)
+ 6. Send manual email to gavrilux.agent@gmail.com
+ 7. Verify in logs: "received Pub/Sub push" + "email.fetch job enqueued"
+    Verify in DB: messages row with channel_type='email' in <5s
+ 8. flyctl secrets set ENABLE_EMAIL_AUTO=true
+ 9. flyctl deploy                                            (apply secret)
+10. Run Gate 1b E2E
+11. If Gate passes → merge feat/phase-1b → main → tag v0.X
 ```
 
 ### 8.3 Rollback
@@ -433,19 +571,24 @@ EMAIL_POLL_INTERVAL_SEC=30
 ### 8.4 Acceptance checklist (Gate 1b)
 
 - [ ] `read_inbox` returns Telegram + Email messages mixed by timestamp
-- [ ] Email to `gavrilux.agent@gmail.com` → `messages` row with `channel_type='email'` in <60s
+- [ ] Email to `gavrilux.agent@gmail.com` → `messages` row with `channel_type='email'` in **<5s** (webhook path)
 - [ ] Agent replies via Gmail API → arrives in user's personal inbox
 - [ ] Reply preserves `In-Reply-To` + `References` (native Gmail threading)
 - [ ] `audit_log` shows 3 rows: `email.received` + `agent.respond.completed` + `email.sent`
 - [ ] Auto-merge: 2nd email same sender → same Contact (no duplicate)
 - [ ] `link_email_to_contact` registered email → future emails merge into target Contact
 - [ ] Kill switch: `ENABLE_EMAIL_AUTO=false` → emails persist, no auto-reply
+- [ ] Webhook JWT validation: forged POST to `/email-webhook` → 401
+- [ ] Polling fallback: temporarily stop Pub/Sub → email arrives → still persisted within 10min
+- [ ] Watch renewal cron fires + extends `watch_expiration` correctly
 - [ ] Cost ≤ $0.02 average per email reply
 
 ## 9. Cost analysis
 
 - Gmail API: **free** up to 1B quota units/day (each email ≈5 units)
-- Polling every 30s = 2,880 calls/day × 5 units = 14,400 units/day → 0.001% of cap
+- Webhook (primary): ~10 calls/day per active token (1 per inbound message + watch renewal). Negligible.
+- Polling fallback (every 10min): 144 calls/day × 5 units = 720 units/day. Negligible.
+- Pub/Sub: **free** up to 10GB/mo (a personal mailbox uses ~0.01GB)
 - LLM cost: ~$0.005-0.02 per email reply, capped by Phase 2's `daily_budget_usd_cap=$1`
 - Fly.io: no change (same VM, same memory)
 - Gmail account: free (no Workspace seat)
@@ -453,23 +596,24 @@ EMAIL_POLL_INTERVAL_SEC=30
 
 ## 10. Estimated effort
 
-5-7 focused days, ~18-20 commits, distributed across 5 sprints:
+6-8 focused days, ~22-25 commits, distributed across 5 sprints:
 
 | Sprint | Scope | Tasks |
 |---|---|---|
-| 1 | Foundations: package, schemas, migration, token store | 4 |
-| 2 | Gmail driver + EmailTransport + normalize + OAuth helpers | 4 |
-| 3 | Identity auto-merge + MCP tools + TransportRegistry | 4 |
-| 4 | CLI + worker poll job + wiring + kill switch | 4 |
-| 5 | Runbook + deploy + Gate 1b | 3 |
+| 1 | Foundations: package, schemas, migration (incl. webhook_events table), token store | 4 |
+| 2 | Gmail driver (fetch + send + watch) + EmailTransport + normalize + OAuth helpers | 5 |
+| 3 | Webhook endpoint with JWT validation + Pub/Sub payload parsing + email.fetch worker job | 4 |
+| 4 | Identity auto-merge + MCP tools (send_message channel param + link_email_to_contact) + TransportRegistry | 4 |
+| 5 | CLI email:setup (OAuth + initial watch) + cron jobs (fallback poll + watch renew) + wiring + kill switch | 4 |
+| 6 | Runbook + GCP setup checklist + deploy + Gate 1b | 3 |
 
 ## 11. Out-of-scope follow-ups (Phase 1c+)
 
 - IMAP / Outlook drivers (`EmailDriver` interface is ready)
-- Gmail Pub/Sub push (replaces polling for sub-second latency)
 - Multi-account per workspace (architecture supports it; UX needed)
 - Heuristic identity merge (name similarity, etc.)
 - Attachments
 - Email signature management
 - HTML body rendering (currently we send text/plain only)
 - Per-contact email rate limiting
+- Pub/Sub dead-letter queue for retries beyond Google's default retry policy
