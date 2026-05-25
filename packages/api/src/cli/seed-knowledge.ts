@@ -41,18 +41,28 @@ export async function seedKnowledge(argv: string[]): Promise<void> {
 
   let workspaceId = opts.workspaceId;
   if (!workspaceId) {
-    const workspaceStore = new SupabaseWorkspaceStore(supabaseUrl, supabaseKey);
-    const workspace = await workspaceStore.getDefault();
-    workspaceId = workspace.id;
+    try {
+      const workspaceStore = new SupabaseWorkspaceStore(supabaseUrl, supabaseKey);
+      const workspace = await workspaceStore.getDefault();
+      workspaceId = workspace.id;
+    } catch (err) {
+      logger.error(
+        { err: err instanceof Error ? err.message : String(err) },
+        "failed to resolve default workspace — pass --workspace-id to override",
+      );
+      process.exit(1);
+    }
   }
 
+  // `**/credenciales*` matches credentials files at any depth; the root-only
+  // form would miss nested copies.
   const config = {
     repo_url: opts.repoUrl,
     branch: opts.branch,
     local_path: opts.localPath,
     deploy_key_env_var: "KNOWLEDGE_GIT_DEPLOY_KEY",
     include_globs: ["**/*.md"],
-    exclude_globs: [".git/**", "*.backup-*", "node_modules/**", "01-Perfil/credenciales*"],
+    exclude_globs: [".git/**", "*.backup-*", "node_modules/**", "**/credenciales*"],
   };
 
   const pg = new PgClient({ connectionString: databaseUrl, connectionTimeoutMillis: 10_000 });
