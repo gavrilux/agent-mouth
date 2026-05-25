@@ -20,6 +20,12 @@ COPY packages/agent-memory/package.json packages/agent-memory/tsconfig.json pack
 COPY packages/agent-guardrails/package.json packages/agent-guardrails/tsconfig.json packages/agent-guardrails/
 COPY packages/agent-notes-updater/package.json packages/agent-notes-updater/tsconfig.json packages/agent-notes-updater/
 COPY packages/queue-pgboss/package.json packages/queue-pgboss/tsconfig.json packages/queue-pgboss/
+# Phase 3 packages
+COPY packages/embeddings/package.json packages/embeddings/tsconfig.json packages/embeddings/
+COPY packages/web-search/package.json packages/web-search/tsconfig.json packages/web-search/
+COPY packages/vector-store/package.json packages/vector-store/tsconfig.json packages/vector-store/
+COPY packages/knowledge-source/package.json packages/knowledge-source/tsconfig.json packages/knowledge-source/
+COPY packages/agent-tools/package.json packages/agent-tools/tsconfig.json packages/agent-tools/
 COPY packages/api/package.json packages/api/tsconfig.json packages/api/
 COPY apps/cli/package.json apps/cli/tsconfig.json apps/cli/
 
@@ -38,6 +44,12 @@ COPY packages/agent-memory/src packages/agent-memory/src
 COPY packages/agent-guardrails/src packages/agent-guardrails/src
 COPY packages/agent-notes-updater/src packages/agent-notes-updater/src
 COPY packages/queue-pgboss/src packages/queue-pgboss/src
+# Phase 3 sources
+COPY packages/embeddings/src packages/embeddings/src
+COPY packages/web-search/src packages/web-search/src
+COPY packages/vector-store/src packages/vector-store/src
+COPY packages/knowledge-source/src packages/knowledge-source/src
+COPY packages/agent-tools/src packages/agent-tools/src
 COPY packages/api/src packages/api/src
 COPY apps/cli/src apps/cli/src
 RUN pnpm -r build
