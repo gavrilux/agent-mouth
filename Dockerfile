@@ -62,6 +62,10 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Phase 3 needs git + ssh client at runtime: GitKnowledgeSource clones the
+# CerebroDigital repo via the KNOWLEDGE_GIT_DEPLOY_KEY secret on every sync tick.
+RUN apk add --no-cache git openssh-client
+
 # Copy pruned production package (workspace deps already embedded in node_modules)
 COPY --from=builder /prod/node_modules ./node_modules
 COPY --from=builder /prod/package.json ./package.json
