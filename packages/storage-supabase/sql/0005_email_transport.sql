@@ -43,4 +43,4 @@ CREATE INDEX IF NOT EXISTS email_webhook_events_received_at_idx
 
 -- dedup index on messages (idempotency across webhook + polling paths)
 CREATE UNIQUE INDEX IF NOT EXISTS messages_channel_external_uniq
-  ON messages (channel_id, external_id) WHERE external_id IS NOT NULL;
+  ON messages (channel_id, external_message_id) WHERE external_message_id IS NOT NULL;
