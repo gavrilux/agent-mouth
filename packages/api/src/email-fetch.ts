@@ -73,6 +73,15 @@ export async function handleEmailFetch(deps: EmailFetchDeps): Promise<void> {
       logger.error({ err: String(err) }, "email.fetch: processInbound failed");
       continue;
     }
+    // Phase 1b debug — log every router result so we can see why agent.respond isn't enqueueing
+    logger.info({
+      kind: result.kind,
+      policy: result.kind === "persisted" ? result.policy : undefined,
+      contactId: result.kind === "persisted" ? result.contactId : undefined,
+      channelType: result.kind === "persisted" ? result.channelType : undefined,
+      externalChatId: result.kind === "persisted" ? result.externalChatId : undefined,
+    }, "email.fetch processInbound result");
+
     if (result.kind === "persisted" && result.policy !== "silent") {
       await deps.queueSend(
         "agent.respond",
@@ -89,6 +98,7 @@ export async function handleEmailFetch(deps: EmailFetchDeps): Promise<void> {
         },
         { singletonKey: result.messageId },
       ).catch((err) => logger.error({ err: String(err) }, "email.fetch enqueue agent.respond failed"));
+      logger.info({ messageId: result.messageId }, "email.fetch agent.respond enqueued");
     }
   }
 
