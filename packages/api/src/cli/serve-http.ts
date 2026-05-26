@@ -1,5 +1,6 @@
 import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
 import { InboundMessageSchema } from "@agent-mouth/core";
+import { handleEmailWebhook, type EmailWebhookDeps } from "../email-webhook.js";
 import {
   SupabaseContactStore,
   SupabaseIdentityResolver,
@@ -94,6 +95,11 @@ export async function serveHttp(): Promise<void> {
   const AUTH_TOKEN = process.env.AGENT_MOUTH_AUTH_TOKEN;
 
   const telegramTransport = new TelegramTransport();
+
+  // Phase 1b — populated in T22 when EmailTransport is bootstrapped.
+  // Until then `/email-webhook` returns 503.
+  const emailWebhookDeps: EmailWebhookDeps | null = null;
+
   await telegramTransport.init({
     ...config.telegram,
     offsetStore,
@@ -193,6 +199,15 @@ export async function serveHttp(): Promise<void> {
             )
             .catch((err) => logger.error({ err }, "enqueue agent.respond failed"));
         }
+        return;
+      }
+
+      if (url.pathname === "/email-webhook" && req.method === "POST") {
+        if (!emailWebhookDeps) {
+          sendJson(res, 503, { error: "email transport not configured" });
+          return;
+        }
+        await handleEmailWebhook(req, res, emailWebhookDeps);
         return;
       }
 
