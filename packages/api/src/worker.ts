@@ -1,4 +1,5 @@
 import { Agent } from "@agent-mouth/agent";
+import { handleEmailFetch } from "./email-fetch.js";
 import { NotesUpdater } from "@agent-mouth/agent-notes-updater";
 import { bootstrapTools, resolveToolsForPolicy } from "@agent-mouth/agent-tools";
 import { resolveRuntime } from "@agent-mouth/agent-runtime";
@@ -54,6 +55,16 @@ export interface WorkerDeps {
   // Phase 3 — when set, daily 7am UTC health-check sends a Telegram alert to
   // this chat ID if any threshold is breached.
   alertChatId?: string;
+  /** Phase 1b — populated when EmailTransport is configured. Enables email.fetch worker job + cron crons. */
+  emailFetchDeps?: {
+    tokenStore: import("@agent-mouth/storage-supabase").SupabaseEmailTokenStore;
+    driver: import("@agent-mouth/transport-email").GmailDriver;
+    decrypt: (cipher: string, keyHex: string) => string;
+    encryptionKey: string;
+    routerDeps: import("./router.js").RouterDeps;
+    processInbound: typeof import("./router.js").processInbound;
+    topicName: string;
+  };
 }
 
 export interface RespondJobData {
@@ -224,6 +235,25 @@ export async function startWorker(
     await queue.work<NotesJobData>("agent.notes.maybe_update", async (data) => {
       await notesUpdater.maybeUpdate(data);
     });
+  }
+
+  if (deps.emailFetchDeps) {
+    await queue.work<{ email_address: string; history_id: string }>("email.fetch", async (data) => {
+      await handleEmailFetch({
+        data,
+        workspaceId: deps.defaultWorkspaceId ?? "",
+        tokenStore: deps.emailFetchDeps!.tokenStore,
+        driver: deps.emailFetchDeps!.driver,
+        decrypt: deps.emailFetchDeps!.decrypt,
+        encryptionKey: deps.emailFetchDeps!.encryptionKey,
+        routerDeps: deps.emailFetchDeps!.routerDeps,
+        processInbound: deps.emailFetchDeps!.processInbound,
+        queueSend: async (name, jobData, opts) => {
+          await queue.send(name, jobData, opts ?? {});
+        },
+      });
+    });
+    logger.info("email.fetch worker registered");
   }
 
   return {

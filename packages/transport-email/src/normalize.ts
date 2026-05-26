@@ -139,3 +139,31 @@ export function gmailMessageToInbound(
     received_at: n.received_at,
   };
 }
+
+/**
+ * Build an InboundMessage directly from a NormalizedEmail (used by the worker when
+ * the driver has already normalized the Gmail payload). The raw Gmail payload
+ * is not preserved in raw_payload (only the normalized form is) — callers can
+ * keep raw separately if needed.
+ */
+export function normalizedEmailToInbound(
+  normalized: NormalizedEmail,
+  channelId: string,
+): InboundMessage {
+  return {
+    channel_type: "email",
+    external_message_id: normalized.external_id,
+    external_thread_id: normalized.external_thread_id,
+    sender_identifier: normalized.from_address,
+    sender_display_name: normalized.from_name ?? normalized.from_address,
+    sender_handle: null,
+    chat_type: "private",
+    content: normalized.body_text || normalized.subject || "(empty)",
+    attachments: [],
+    raw_payload: {
+      channel_id: channelId,
+      normalized: normalized as unknown as Record<string, unknown>,
+    },
+    received_at: normalized.received_at,
+  };
+}
