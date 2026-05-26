@@ -30,3 +30,4 @@ export * from "./vector.js";
 export * from "./web-search.js";
 export * from "./embeddings.js";
 export * from "./tools.js";
+export * from "./email.js";

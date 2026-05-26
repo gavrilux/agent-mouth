@@ -1,7 +1,10 @@
 import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
 import { InboundMessageSchema } from "@agent-mouth/core";
+import { handleEmailWebhook, type EmailWebhookDeps } from "../email-webhook.js";
 import {
   SupabaseContactStore,
+  SupabaseEmailTokenStore,
+  SupabaseEmailWebhookEventsStore,
   SupabaseIdentityResolver,
   SupabaseMessageStore,
   SupabaseOffsetStore,
@@ -9,6 +12,12 @@ import {
   SupabaseThreadStore,
   SupabaseWorkspaceStore,
 } from "@agent-mouth/storage-supabase";
+import {
+  GmailDriver,
+  EmailTransport,
+  decryptToken,
+  verifyGooglePushJwt,
+} from "@agent-mouth/transport-email";
 import {
   type TelegramConfig,
   TelegramTransport,
@@ -21,6 +30,7 @@ import { logger } from "../logger.js";
 import { type RouterDeps, processInbound } from "../router.js";
 import { buildServer } from "../server.js";
 import { startWorker } from "../worker.js";
+import { TransportRegistry } from "../transports/registry.js";
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -94,10 +104,103 @@ export async function serveHttp(): Promise<void> {
   const AUTH_TOKEN = process.env.AGENT_MOUTH_AUTH_TOKEN;
 
   const telegramTransport = new TelegramTransport();
+
+  // Phase 1b — populated after EmailTransport bootstraps and worker boots.
+  // Until then `/email-webhook` returns 503.
+  let emailWebhookDeps: EmailWebhookDeps | null = null;
+  let transportRegistry: TransportRegistry | null = null;
+  let emailFetchDeps: NonNullable<Parameters<typeof startWorker>[0]["emailFetchDeps"]> | undefined =
+    undefined;
+
+  // Temporary holder for the parts of emailWebhookDeps that don't need workerCtl.queue.
+  // Consumed after startWorker() resolves.
+  let emailWebhookPrep: {
+    verifyJwt: typeof verifyGooglePushJwt;
+    webhookEventsStore: SupabaseEmailWebhookEventsStore;
+    config: { audience: string; serviceAccountEmail: string };
+  } | null = null;
+
   await telegramTransport.init({
     ...config.telegram,
     offsetStore,
   } as TelegramConfig);
+
+  // Phase 1b — bootstrap EmailTransport if configured
+  const enableEmail = process.env.ENABLE_EMAIL_TRANSPORT === "true";
+  if (enableEmail) {
+    const gClientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+    const gClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+    const encryptionKey = process.env.AGENT_MOUTH_TOKEN_ENCRYPTION_KEY;
+    const pubsubTopic = process.env.GOOGLE_PUBSUB_TOPIC;
+    const pubsubSAEmail = process.env.GOOGLE_PUBSUB_SERVICE_ACCOUNT_EMAIL;
+    const webhookAudience = process.env.EMAIL_WEBHOOK_AUDIENCE;
+
+    if (
+      !gClientId ||
+      !gClientSecret ||
+      !encryptionKey ||
+      !pubsubTopic ||
+      !pubsubSAEmail ||
+      !webhookAudience
+    ) {
+      logger.warn(
+        "ENABLE_EMAIL_TRANSPORT=true but missing required env vars (GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, AGENT_MOUTH_TOKEN_ENCRYPTION_KEY, GOOGLE_PUBSUB_TOPIC, GOOGLE_PUBSUB_SERVICE_ACCOUNT_EMAIL, EMAIL_WEBHOOK_AUDIENCE); EmailTransport will not boot",
+      );
+    } else {
+      try {
+        const driver = new GmailDriver({ clientId: gClientId, clientSecret: gClientSecret });
+        const tokenStore = new SupabaseEmailTokenStore({ url: supabaseUrl, anonKey: supabaseKey });
+        const webhookEventsStore = new SupabaseEmailWebhookEventsStore({
+          url: supabaseUrl,
+          anonKey: supabaseKey,
+        });
+
+        // Pick the first active token for this workspace as the EmailTransport identity
+        const tokens = await tokenStore.list(workspace.id);
+        const activeToken = tokens.find((t) => t.status === "active");
+        if (!activeToken) {
+          logger.warn(
+            "ENABLE_EMAIL_TRANSPORT=true but no active email_oauth_tokens row — run `pnpm cli email:setup` first",
+          );
+        } else {
+          const refreshToken = decryptToken(activeToken.refresh_token_encrypted, encryptionKey);
+          const emailTransport = new EmailTransport({
+            driver,
+            auth: { refresh_token: refreshToken, email_address: activeToken.email_address },
+          });
+          await emailTransport.init({});
+
+          transportRegistry = new TransportRegistry();
+          transportRegistry.register("telegram", telegramTransport);
+          transportRegistry.register("email", emailTransport);
+
+          emailFetchDeps = {
+            tokenStore,
+            driver,
+            decrypt: decryptToken,
+            encryptionKey,
+            routerDeps,
+            processInbound,
+            topicName: pubsubTopic,
+          };
+
+          // Store immutable webhook deps; queueEnqueue is added after startWorker boots.
+          emailWebhookPrep = {
+            verifyJwt: verifyGooglePushJwt,
+            webhookEventsStore,
+            config: { audience: webhookAudience, serviceAccountEmail: pubsubSAEmail },
+          };
+
+          logger.info({ email: activeToken.email_address }, "email transport bootstrapped");
+        }
+      } catch (err) {
+        logger.error(
+          { err: String(err) },
+          "email transport bootstrap failed; continuing without email",
+        );
+      }
+    }
+  }
 
   const databaseUrl = process.env.DATABASE_URL;
   const apiKeys: Record<string, string | undefined> = {
@@ -137,8 +240,25 @@ export async function serveHttp(): Promise<void> {
         workspaceStore,
         policyEngine,
         transport: telegramTransport,
+        emailFetchDeps,
+        // Phase 1b: when set, handleRespondJob picks transport per channelType.
+        transportRegistry: transportRegistry ?? undefined,
       });
       logger.info({ defaultModel }, "pg-boss worker started");
+
+      // Phase 1b — finalize emailWebhookDeps now that workerCtl.queue is available
+      if (emailWebhookPrep && workerCtl) {
+        emailWebhookDeps = {
+          verifyJwt: emailWebhookPrep.verifyJwt,
+          webhookEventsStore: emailWebhookPrep.webhookEventsStore,
+          queueEnqueue: async (name, data, opts) => {
+            await workerCtl!.queue.send(name, data, opts ?? {});
+          },
+          config: emailWebhookPrep.config,
+        };
+        emailWebhookPrep = null;
+        logger.info("email webhook deps wired");
+      }
     } catch (err) {
       logger.error({ err }, "pg-boss worker failed to start — continuing in Phase 1a mode");
       workerCtl = null;
@@ -196,6 +316,15 @@ export async function serveHttp(): Promise<void> {
         return;
       }
 
+      if (url.pathname === "/email-webhook" && req.method === "POST") {
+        if (!emailWebhookDeps) {
+          sendJson(res, 503, { error: "email transport not configured" });
+          return;
+        }
+        await handleEmailWebhook(req, res, emailWebhookDeps);
+        return;
+      }
+
       if (AUTH_TOKEN) {
         const authHeader = req.headers.authorization ?? "";
         if (authHeader !== `Bearer ${AUTH_TOKEN}`) {
@@ -215,6 +344,32 @@ export async function serveHttp(): Promise<void> {
           handle: config.telegram!.handle,
           messageStore,
           workspaceId: workspace.id,
+          // Phase 1b additions
+          transportRegistry: transportRegistry ?? undefined,
+          threadStore: {
+            findById: (id: string) => threadStore.get(id),
+          },
+          channelStore: {
+            findById: async (id: string) => {
+              const url = `${supabaseUrl}/rest/v1/channels?id=eq.${id}&select=id,type&limit=1`;
+              const res = await fetch(url, {
+                headers: {
+                  apikey: supabaseKey,
+                  Authorization: `Bearer ${supabaseKey}`,
+                },
+              });
+              if (!res.ok) return null;
+              const rows = (await res.json()) as Array<{
+                id: string;
+                type: "telegram" | "email" | "whatsapp" | "discord" | "slack";
+              }>;
+              return rows[0] ?? null;
+            },
+          },
+          contactStore: {
+            addEmailToMetadata: (workspaceId, contactId, email) =>
+              contactStore.addEmailToMetadata(workspaceId, contactId, email),
+          },
         });
         await server.connect(mcpTransport);
         const reqWithBody = Object.assign(req, { body });

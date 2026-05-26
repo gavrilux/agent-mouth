@@ -11,3 +11,7 @@ export { SupabaseDraftStore } from "./draft-store.js";
 export type { SupabaseDraftStoreOptions } from "./draft-store.js";
 export { SupabaseKnowledgeFilesRepo } from "./knowledge-files-repo.js";
 export type { SupabaseKnowledgeFilesRepoOptions } from "./knowledge-files-repo.js";
+export { SupabaseEmailTokenStore } from "./email-token-store.js";
+export type { SupabaseEmailTokenStoreOptions } from "./email-token-store.js";
+export { SupabaseEmailWebhookEventsStore } from "./email-webhook-events-store.js";
+export type { SupabaseEmailWebhookEventsStoreOptions } from "./email-webhook-events-store.js";

@@ -26,6 +26,8 @@ COPY packages/web-search/package.json packages/web-search/tsconfig.json packages
 COPY packages/vector-store/package.json packages/vector-store/tsconfig.json packages/vector-store/
 COPY packages/knowledge-source/package.json packages/knowledge-source/tsconfig.json packages/knowledge-source/
 COPY packages/agent-tools/package.json packages/agent-tools/tsconfig.json packages/agent-tools/
+# Phase 1b package
+COPY packages/transport-email/package.json packages/transport-email/tsconfig.json packages/transport-email/
 COPY packages/api/package.json packages/api/tsconfig.json packages/api/
 COPY apps/cli/package.json apps/cli/tsconfig.json apps/cli/
 
@@ -50,6 +52,8 @@ COPY packages/web-search/src packages/web-search/src
 COPY packages/vector-store/src packages/vector-store/src
 COPY packages/knowledge-source/src packages/knowledge-source/src
 COPY packages/agent-tools/src packages/agent-tools/src
+# Phase 1b sources
+COPY packages/transport-email/src packages/transport-email/src
 COPY packages/api/src packages/api/src
 COPY apps/cli/src apps/cli/src
 RUN pnpm -r build

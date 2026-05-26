@@ -7,26 +7,57 @@ const FilterEnum = z.enum(["mentions", "replies", "all"]);
 export const sendMessageTool: ToolDef = {
   name: "send_message",
   description:
-    "Send a message to the group. If `to` is a handle, the message is prefixed with @<handle> so the receiving bot picks it up. If `to` is omitted or 'broadcast', sends without mention.",
+    "Send a message. For Telegram: `to` is a numeric chat id or handle. For Email: `to` is an email address; `subject` should be provided for new threads. If `channel` is omitted, the tool infers it from `reply_to_message_id`'s thread, falling back to the default transport.",
   inputSchema: {
     type: "object",
     required: ["body"],
     properties: {
       to: { type: "string" },
+      channel: { type: "string", enum: ["telegram", "email"] },
       body: { type: "string", minLength: 1 },
       reply_to_message_id: { type: "string" },
+      subject: { type: "string" },
     },
     additionalProperties: false,
   },
-  handler: async (input, { transport }) => {
+  handler: async (input, ctx) => {
     const parsed = z
       .object({
         to: z.string().optional(),
+        channel: z.enum(["telegram", "email"]).optional(),
         body: z.string().min(1),
         reply_to_message_id: z.string().optional(),
+        subject: z.string().optional(),
       })
       .parse(input);
-    return transport.send(parsed);
+
+    // Resolve channel
+    let channel = parsed.channel;
+    if (!channel && parsed.reply_to_message_id && ctx.threadStore && ctx.channelStore) {
+      try {
+        const thread = await ctx.threadStore.findById(parsed.reply_to_message_id);
+        if (thread) {
+          const ch = await ctx.channelStore.findById(thread.channel_id);
+          if (ch && (ch.type === "telegram" || ch.type === "email")) {
+            channel = ch.type;
+          }
+        }
+      } catch {
+        // ignore lookup failures, fall back to default
+      }
+    }
+
+    // Pick transport
+    const transport = (channel && ctx.transportRegistry)
+      ? ctx.transportRegistry.get(channel)
+      : ctx.transport;
+
+    return transport.send({
+      to: parsed.to,
+      body: parsed.body,
+      reply_to_message_id: parsed.reply_to_message_id,
+      subject: parsed.subject,
+    });
   },
 };
 

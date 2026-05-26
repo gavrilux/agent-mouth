@@ -1,5 +1,6 @@
 import { registerTool } from "../registry.js";
 import { listContactsTool, whoamiTool } from "./identity.js";
+import { linkEmailToContactTool } from "./link-email-to-contact.js";
 import {
   getThreadTool,
   markReadTool,
@@ -15,3 +16,4 @@ registerTool(readInboxTool);
 registerTool(waitForMessagesTool);
 registerTool(getThreadTool);
 registerTool(markReadTool);
+registerTool(linkEmailToContactTool);

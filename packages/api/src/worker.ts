@@ -1,4 +1,7 @@
 import { Agent } from "@agent-mouth/agent";
+import { handleEmailFetch } from "./email-fetch.js";
+import { handleEmailPollFallback } from "./email-poll-fallback.js";
+import { handleEmailWatchRenew } from "./email-watch-renew.js";
 import { NotesUpdater } from "@agent-mouth/agent-notes-updater";
 import { bootstrapTools, resolveToolsForPolicy } from "@agent-mouth/agent-tools";
 import { resolveRuntime } from "@agent-mouth/agent-runtime";
@@ -54,6 +57,18 @@ export interface WorkerDeps {
   // Phase 3 — when set, daily 7am UTC health-check sends a Telegram alert to
   // this chat ID if any threshold is breached.
   alertChatId?: string;
+  /** Phase 1b — populated when EmailTransport is configured. Enables email.fetch worker job + cron crons. */
+  emailFetchDeps?: {
+    tokenStore: import("@agent-mouth/storage-supabase").SupabaseEmailTokenStore;
+    driver: import("@agent-mouth/transport-email").GmailDriver;
+    decrypt: (cipher: string, keyHex: string) => string;
+    encryptionKey: string;
+    routerDeps: import("./router.js").RouterDeps;
+    processInbound: typeof import("./router.js").processInbound;
+    topicName: string;
+  };
+  /** Phase 1b — when present, handleRespondJob picks transport per channelType (telegram vs email). */
+  transportRegistry?: { get(type: import("@agent-mouth/core").ChannelType): Transport };
 }
 
 export interface RespondJobData {
@@ -226,6 +241,66 @@ export async function startWorker(
     });
   }
 
+  if (deps.emailFetchDeps) {
+    await queue.work<{ email_address: string; history_id: string }>("email.fetch", async (data) => {
+      await handleEmailFetch({
+        data,
+        workspaceId: deps.defaultWorkspaceId ?? "",
+        tokenStore: deps.emailFetchDeps!.tokenStore,
+        driver: deps.emailFetchDeps!.driver,
+        decrypt: deps.emailFetchDeps!.decrypt,
+        encryptionKey: deps.emailFetchDeps!.encryptionKey,
+        routerDeps: deps.emailFetchDeps!.routerDeps,
+        processInbound: deps.emailFetchDeps!.processInbound,
+        queueSend: async (name, jobData, opts) => {
+          await queue.send(name, jobData, opts ?? {});
+        },
+      });
+    });
+    logger.info("email.fetch worker registered");
+
+    // email.poll.fallback — safety net every 10 min
+    const fallbackInterval = Number(process.env.EMAIL_POLL_FALLBACK_INTERVAL_MIN ?? "10");
+    await queue.scheduleRecurring(
+      "email.poll.fallback",
+      `*/${fallbackInterval} * * * *`,
+      {},
+      { singletonKey: "email.poll.singleton" },
+    );
+    await queue.work("email.poll.fallback", async () => {
+      await handleEmailPollFallback({
+        tokenStore: deps.emailFetchDeps!.tokenStore,
+        fetchOne: async (email, lastHistoryId) => {
+          await queue.send(
+            "email.fetch",
+            { email_address: email, history_id: lastHistoryId },
+            { singletonKey: `email.fetch.${email}.${lastHistoryId}` },
+          );
+        },
+      });
+    });
+
+    // email.watch.renew — every 6 days at 05:00 UTC
+    const renewIntervalDays = Number(process.env.EMAIL_WATCH_RENEW_INTERVAL_DAYS ?? "6");
+    await queue.scheduleRecurring(
+      "email.watch.renew",
+      `0 5 */${renewIntervalDays} * *`,
+      {},
+      { singletonKey: "email.watch.renew.singleton" },
+    );
+    await queue.work("email.watch.renew", async () => {
+      await handleEmailWatchRenew({
+        tokenStore: deps.emailFetchDeps!.tokenStore,
+        driver: deps.emailFetchDeps!.driver,
+        decrypt: deps.emailFetchDeps!.decrypt,
+        encryptionKey: deps.emailFetchDeps!.encryptionKey,
+        topicName: deps.emailFetchDeps!.topicName,
+      });
+    });
+
+    logger.info("email cron jobs registered (poll.fallback, watch.renew)");
+  }
+
   return {
     queue,
     stop: async () => {
@@ -293,9 +368,14 @@ export async function handleRespondJob(
   }
 
   if (out.decision === "ready_to_send") {
-    const sent = await ctx.deps.transport.send({
+    // Phase 1b: pick the right transport per channelType (telegram vs email).
+    // Falls back to deps.transport (Telegram singleton) when no registry configured.
+    const tx = ctx.deps.transportRegistry?.get(data.channelType) ?? ctx.deps.transport;
+    const sent = await tx.send({
       to: data.externalChatId,
       body: out.response.body,
+      // For email: subject required for new threads. Use "Re:" prefix when replying.
+      subject: data.channelType === "email" ? `Re: ${data.messageContent.slice(0, 60)}` : undefined,
     });
     await ctx.deps.messageStore.insert({
       threadId: data.threadId,

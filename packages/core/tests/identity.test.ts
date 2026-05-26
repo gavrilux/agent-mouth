@@ -21,7 +21,10 @@ describe("identity schemas", () => {
 
   it("ContactSchema parses valid row", () => {
     const c = { id: contactId, workspace_id: wsId, display_name: "Gavrilo", notes: "", created_at: "2026-05-20T00:00:00Z" };
-    expect(ContactSchema.parse(c)).toEqual(c);
+    expect(ContactSchema.parse(c)).toEqual({
+      ...c,
+      metadata: { email_addresses: [] },
+    });
   });
 
   it("ChannelSchema rejects unknown channel type", () => {
