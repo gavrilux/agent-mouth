@@ -1,5 +1,7 @@
 import { Agent } from "@agent-mouth/agent";
 import { handleEmailFetch } from "./email-fetch.js";
+import { handleEmailPollFallback } from "./email-poll-fallback.js";
+import { handleEmailWatchRenew } from "./email-watch-renew.js";
 import { NotesUpdater } from "@agent-mouth/agent-notes-updater";
 import { bootstrapTools, resolveToolsForPolicy } from "@agent-mouth/agent-tools";
 import { resolveRuntime } from "@agent-mouth/agent-runtime";
@@ -254,6 +256,47 @@ export async function startWorker(
       });
     });
     logger.info("email.fetch worker registered");
+
+    // email.poll.fallback — safety net every 10 min
+    const fallbackInterval = Number(process.env.EMAIL_POLL_FALLBACK_INTERVAL_MIN ?? "10");
+    await queue.scheduleRecurring(
+      "email.poll.fallback",
+      `*/${fallbackInterval} * * * *`,
+      {},
+      { singletonKey: "email.poll.singleton" },
+    );
+    await queue.work("email.poll.fallback", async () => {
+      await handleEmailPollFallback({
+        tokenStore: deps.emailFetchDeps!.tokenStore,
+        fetchOne: async (email, lastHistoryId) => {
+          await queue.send(
+            "email.fetch",
+            { email_address: email, history_id: lastHistoryId },
+            { singletonKey: `email.fetch.${email}.${lastHistoryId}` },
+          );
+        },
+      });
+    });
+
+    // email.watch.renew — every 6 days at 05:00 UTC
+    const renewIntervalDays = Number(process.env.EMAIL_WATCH_RENEW_INTERVAL_DAYS ?? "6");
+    await queue.scheduleRecurring(
+      "email.watch.renew",
+      `0 5 */${renewIntervalDays} * *`,
+      {},
+      { singletonKey: "email.watch.renew.singleton" },
+    );
+    await queue.work("email.watch.renew", async () => {
+      await handleEmailWatchRenew({
+        tokenStore: deps.emailFetchDeps!.tokenStore,
+        driver: deps.emailFetchDeps!.driver,
+        decrypt: deps.emailFetchDeps!.decrypt,
+        encryptionKey: deps.emailFetchDeps!.encryptionKey,
+        topicName: deps.emailFetchDeps!.topicName,
+      });
+    });
+
+    logger.info("email cron jobs registered (poll.fallback, watch.renew)");
   }
 
   return {
