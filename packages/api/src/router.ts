@@ -62,6 +62,14 @@ export async function processInbound(msg: InboundMessage, deps: RouterDeps): Pro
     channelType: msg.channel_type,
   });
 
+  // Phase 1b kill switch: ENABLE_EMAIL_AUTO=false forces email policy to silent.
+  // Read env on every call (no caching) so flipping the var is effective once
+  // the env update lands in the process.
+  let effectivePolicyAction = policy.policy;
+  if (msg.channel_type === "email" && process.env.ENABLE_EMAIL_AUTO === "false") {
+    effectivePolicyAction = "silent";
+  }
+
   const persisted = await deps.messageStore.insert({
     threadId: thread.id,
     channelId: ident.channel.id,
@@ -76,7 +84,7 @@ export async function processInbound(msg: InboundMessage, deps: RouterDeps): Pro
 
   return {
     kind: "persisted",
-    policy: policy.policy,
+    policy: effectivePolicyAction,
     messageId: persisted.id,
     contactId: ident.contact.id,
     threadId: thread.id,
