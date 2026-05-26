@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS email_oauth_tokens (
 );
 ALTER TABLE email_oauth_tokens ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "service_role full access" ON email_oauth_tokens
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 -- email_webhook_events — dedup at-least-once Pub/Sub delivery
 CREATE TABLE IF NOT EXISTS email_webhook_events (
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS email_webhook_events (
 );
 ALTER TABLE email_webhook_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "service_role full access" ON email_webhook_events
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 CREATE INDEX IF NOT EXISTS email_webhook_events_received_at_idx
   ON email_webhook_events (received_at);
 
