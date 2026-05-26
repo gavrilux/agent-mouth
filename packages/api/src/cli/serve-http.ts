@@ -241,6 +241,8 @@ export async function serveHttp(): Promise<void> {
         policyEngine,
         transport: telegramTransport,
         emailFetchDeps,
+        // Phase 1b: when set, handleRespondJob picks transport per channelType.
+        transportRegistry: transportRegistry ?? undefined,
       });
       logger.info({ defaultModel }, "pg-boss worker started");
 

@@ -67,6 +67,8 @@ export interface WorkerDeps {
     processInbound: typeof import("./router.js").processInbound;
     topicName: string;
   };
+  /** Phase 1b — when present, handleRespondJob picks transport per channelType (telegram vs email). */
+  transportRegistry?: { get(type: import("@agent-mouth/core").ChannelType): Transport };
 }
 
 export interface RespondJobData {
@@ -366,9 +368,14 @@ export async function handleRespondJob(
   }
 
   if (out.decision === "ready_to_send") {
-    const sent = await ctx.deps.transport.send({
+    // Phase 1b: pick the right transport per channelType (telegram vs email).
+    // Falls back to deps.transport (Telegram singleton) when no registry configured.
+    const tx = ctx.deps.transportRegistry?.get(data.channelType) ?? ctx.deps.transport;
+    const sent = await tx.send({
       to: data.externalChatId,
       body: out.response.body,
+      // For email: subject required for new threads. Use "Re:" prefix when replying.
+      subject: data.channelType === "email" ? `Re: ${data.messageContent.slice(0, 60)}` : undefined,
     });
     await ctx.deps.messageStore.insert({
       threadId: data.threadId,
