@@ -31,6 +31,8 @@ export interface SendOptions {
   to?: string; // handle, or "broadcast" / undefined
   body: string;
   reply_to_message_id?: string;
+  /** Email-only: subject line. Ignored by non-email transports. */
+  subject?: string;
 }
 
 export interface ReceiveOptions {

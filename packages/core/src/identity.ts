@@ -16,6 +16,9 @@ export const ContactSchema = z.object({
   workspace_id: z.string().uuid(),
   display_name: z.string().min(1),
   notes: z.string().default(""),
+  metadata: z.object({
+    email_addresses: z.array(z.string().email()).default([]),
+  }).passthrough().default({}),
   created_at: z.string().datetime({ offset: true }),
 });
 export type Contact = z.infer<typeof ContactSchema>;
