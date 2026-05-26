@@ -46,4 +46,25 @@ export class SupabaseContactStore implements ContactStore {
     );
     if (!res.ok) throw new Error(`contacts updateNotes failed: ${res.status} ${await res.text()}`);
   }
+
+  async addEmailToMetadata(workspaceId: string, contactId: string, email: string): Promise<Contact> {
+    const lower = email.toLowerCase();
+    // Atomic-ish read-modify-write: read current metadata, append (dedup), patch.
+    const cur = await this.findById(workspaceId, contactId);
+    if (!cur) throw new Error(`contact ${contactId} not found in workspace ${workspaceId}`);
+    const meta = (cur.metadata ?? {}) as Record<string, unknown>;
+    const existing = (Array.isArray(meta.email_addresses) ? meta.email_addresses : []) as string[];
+    if (existing.includes(lower)) return cur; // idempotent
+    const updated = { ...meta, email_addresses: [...existing, lower] };
+    const url = `${this.url}/rest/v1/contacts?id=eq.${contactId}`;
+    const res = await fetch(url, {
+      method: "PATCH",
+      headers: { ...this.headers(), Prefer: "return=representation" },
+      body: JSON.stringify({ metadata: updated }),
+    });
+    if (!res.ok) throw new Error(`contact metadata patch failed: ${res.status} ${await res.text()}`);
+    const rows = (await res.json()) as unknown[];
+    if (rows.length === 0) throw new Error(`contact metadata patch returned no rows for ${contactId}`);
+    return ContactSchema.parse(rows[0]);
+  }
 }
