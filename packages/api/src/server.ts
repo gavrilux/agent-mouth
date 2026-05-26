@@ -2,8 +2,9 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { MessageStore, OffsetStore, Transport } from "@agent-mouth/core";
 import { logger } from "./logger.js";
-import { tools } from "./registry.js";
+import { type ToolChannelRef, type ToolThreadRef, tools } from "./registry.js";
 import "./tools/_register.js";
+import type { ChannelType, Contact } from "@agent-mouth/core";
 
 export type { ToolContext, ToolDef } from "./registry.js";
 export { registerTool } from "./registry.js";
@@ -15,6 +16,13 @@ export interface ServerOptions {
   handle?: string;
   messageStore?: MessageStore;
   workspaceId?: string;
+  // Phase 1b — optional multi-transport + identity helpers
+  transportRegistry?: { get(type: ChannelType): Transport };
+  threadStore?: { findById(id: string): Promise<ToolThreadRef | null> };
+  channelStore?: { findById(id: string): Promise<ToolChannelRef | null> };
+  contactStore?: {
+    addEmailToMetadata(workspaceId: string, contactId: string, email: string): Promise<Contact>;
+  };
 }
 
 export function buildServer(opts: ServerOptions): Server {
@@ -38,6 +46,10 @@ export function buildServer(opts: ServerOptions): Server {
         handle: opts.handle,
         messageStore: opts.messageStore,
         workspaceId: opts.workspaceId,
+        transportRegistry: opts.transportRegistry,
+        threadStore: opts.threadStore,
+        channelStore: opts.channelStore,
+        contactStore: opts.contactStore,
       });
       return {
         content: [{ type: "text", text: JSON.stringify({ ok: true, data: result }) }],
