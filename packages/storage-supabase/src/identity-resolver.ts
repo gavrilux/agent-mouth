@@ -29,19 +29,44 @@ export class SupabaseIdentityResolver implements IdentityResolver {
     identifier: string;
     displayName: string;
   }): Promise<IdentityResolveResult> {
+    // Normalize email identifiers to lowercase. Other channels keep raw casing.
+    const identifier = args.channelType === "email" ? args.identifier.toLowerCase() : args.identifier;
+
     const channel = await this.findChannel(args.workspaceId, args.channelType);
     if (!channel) throw new Error(`no ${args.channelType} channel configured for workspace ${args.workspaceId}`);
 
-    const existing = await this.findIdentity(channel.id, args.identifier);
+    // 1. Exact ChannelIdentity match
+    const existing = await this.findIdentity(channel.id, identifier);
     if (existing) {
       const contact = await this.contacts.findById(args.workspaceId, existing.contact_id);
       if (!contact) throw new Error(`identity ${existing.id} references missing contact ${existing.contact_id}`);
       return { contact, channel, channel_identity: existing, created: false };
     }
 
+    // 2. For email: try auto-merge via metadata.email_addresses[]
+    if (args.channelType === "email") {
+      const merged = await this.findContactByEmailMetadata(args.workspaceId, identifier);
+      if (merged) {
+        const newIdentity = await this.createIdentity(merged.id, channel.id, identifier);
+        return { contact: merged, channel, channel_identity: newIdentity, created: true };
+      }
+    }
+
+    // 3. No match → create new Contact + ChannelIdentity
     const contact = await this.contacts.upsertByDisplayName(args.workspaceId, args.displayName);
-    const created = await this.createIdentity(contact.id, channel.id, args.identifier);
-    return { contact, channel, channel_identity: created, created: true };
+    const newIdentity = await this.createIdentity(contact.id, channel.id, identifier);
+    return { contact, channel, channel_identity: newIdentity, created: true };
+  }
+
+  private async findContactByEmailMetadata(workspaceId: string, email: string): Promise<Contact | null> {
+    // PostgREST: filter on jsonb contains. metadata->'email_addresses' ? <email>
+    // We use the `cs` (contains) operator on the jsonb array.
+    const enc = encodeURIComponent(JSON.stringify([email]));
+    const url = `${this.url}/rest/v1/contacts?workspace_id=eq.${workspaceId}&metadata->email_addresses=cs.${enc}&select=*&limit=1`;
+    const res = await fetch(url, { headers: this.headers() });
+    if (!res.ok) throw new Error(`metadata contact lookup failed: ${res.status}`);
+    const rows = (await res.json()) as unknown[];
+    return rows.length ? ContactSchema.parse(rows[0]) : null;
   }
 
   private async findChannel(workspaceId: string, type: Channel["type"]): Promise<Channel | null> {
