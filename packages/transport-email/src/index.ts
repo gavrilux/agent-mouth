@@ -15,3 +15,7 @@ export { gmailMessageToInbound, gmailMessageToNormalized } from "./normalize.js"
 export { buildMime, mimeToBase64Url } from "./mime.js";
 export { EmailTransport } from "./email-transport.js";
 export type { EmailTransportOptions } from "./email-transport.js";
+export { parsePubSubEnvelope } from "./webhook/pubsub-payload.js";
+export type { ParsedPubSubPayload } from "./webhook/pubsub-payload.js";
+export { verifyGooglePushJwt } from "./webhook/jwt.js";
+export type { GooglePushJwtPayload } from "./webhook/jwt.js";
