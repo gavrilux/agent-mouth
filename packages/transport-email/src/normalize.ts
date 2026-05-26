@@ -42,7 +42,7 @@ function parseAddress(raw: string): { name: string | null; address: string } {
     const name = (m[1] ?? "").trim();
     return {
       name: name.length ? name : null,
-      address: m[2].trim().toLowerCase(),
+      address: (m[2] ?? "").trim().toLowerCase(),
     };
   }
   return { name: null, address: raw.trim().toLowerCase() };
