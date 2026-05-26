@@ -1,6 +1,5 @@
 // packages/api/src/cli/email-setup.ts
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { Client as PgClient } from "pg";
 import {
   GmailDriver,
   buildAuthUrl,
@@ -99,31 +98,45 @@ export async function emailSetup(argv: string[]): Promise<void> {
   });
   console.log(`Watch created. Expires: ${watch.expiration}`);
 
-  // Ensure channel row exists for type='email' in this workspace
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    logger.error("DATABASE_URL required for channel upsert");
+  // Ensure channel row exists for type='email' in this workspace.
+  // Use Supabase REST (HTTPS) instead of direct pg (IPv6) so the CLI works from
+  // any local network without IPv6 routing to Supabase's Postgres endpoint.
+  const restHeaders = {
+    apikey: supabaseKey,
+    Authorization: `Bearer ${supabaseKey}`,
+    "Content-Type": "application/json",
+  };
+  let channelId: string;
+  const lookupUrl = `${supabaseUrl}/rest/v1/channels?workspace_id=eq.${workspaceId}&type=eq.email&select=id&limit=1`;
+  const lookupRes = await fetch(lookupUrl, { headers: restHeaders });
+  if (!lookupRes.ok) {
+    logger.error({ status: lookupRes.status, body: await lookupRes.text() }, "channel lookup failed");
     process.exit(1);
   }
-  const pg = new PgClient({ connectionString: databaseUrl, connectionTimeoutMillis: 10_000 });
-  let channelId: string;
-  try {
-    await pg.connect();
-    const existing = await pg.query(
-      `SELECT id FROM channels WHERE workspace_id=$1 AND type='email' LIMIT 1`,
-      [workspaceId],
-    );
-    if (existing.rows.length > 0) {
-      channelId = existing.rows[0].id;
-    } else {
-      const ins = await pg.query(
-        `INSERT INTO channels (workspace_id, type, config, status) VALUES ($1, 'email', $2, 'active') RETURNING id`,
-        [workspaceId, JSON.stringify({ email_address: me.email_address })],
-      );
-      channelId = ins.rows[0].id;
+  const lookupRows = (await lookupRes.json()) as Array<{ id: string }>;
+  if (lookupRows.length > 0) {
+    channelId = lookupRows[0]!.id;
+  } else {
+    const insertRes = await fetch(`${supabaseUrl}/rest/v1/channels`, {
+      method: "POST",
+      headers: { ...restHeaders, Prefer: "return=representation" },
+      body: JSON.stringify({
+        workspace_id: workspaceId,
+        type: "email",
+        config: { email_address: me.email_address },
+        status: "active",
+      }),
+    });
+    if (!insertRes.ok) {
+      logger.error({ status: insertRes.status, body: await insertRes.text() }, "channel insert failed");
+      process.exit(1);
     }
-  } finally {
-    await pg.end().catch(() => {});
+    const insertRows = (await insertRes.json()) as Array<{ id: string }>;
+    if (insertRows.length === 0) {
+      logger.error("channel insert returned no rows");
+      process.exit(1);
+    }
+    channelId = insertRows[0]!.id;
   }
 
   // Save token row
