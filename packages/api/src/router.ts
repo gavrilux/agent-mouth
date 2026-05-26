@@ -91,7 +91,9 @@ export async function processInbound(msg: InboundMessage, deps: RouterDeps): Pro
     channelType: msg.channel_type,
     channelId: ident.channel.id,
     channelIdentityId: ident.channel_identity.id,
-    externalChatId: msg.external_thread_id,
+    // Phase 1b: for email, the reply target is the SENDER's address.
+    // For Telegram, external_thread_id == chat_id (where to send).
+    externalChatId: msg.channel_type === "email" ? msg.sender_identifier : msg.external_thread_id,
     messageContent: msg.content,
   };
 }
