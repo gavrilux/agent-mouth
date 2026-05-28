@@ -45,8 +45,8 @@ The transport layer is already prepared for this: `ChannelType` enum already inc
 | 3 | **Text only in v1** (C) | Media has distinct payloads and storage needs. Out for v1. |
 | 4 | **Allow-list via `WHATSAPP_ALLOWLIST` env var** (B) | WhatsApp charges per conversation. Default policy for WhatsApp senders = `silent`; only E.164 numbers in the allow-list reach normal policy evaluation (`auto`). Env var is the simplest safe mechanism for a single-user deployment; a DB-backed allow-list/MCP tool is a follow-up. |
 | 5 | **Meta WhatsApp Cloud API, direct** | Free hosting by Meta, lowest per-message cost, official, aligned with vision doc §6. Fits the existing webhook pattern. |
-| 6 | **No new DB tables; no OAuth token store** | WhatsApp auth is a long-lived System User access token kept as a Fly secret (no OAuth refresh dance, unlike Gmail). Inbound dedup reuses the existing `messages` UNIQUE `(channel_id, external_id)` index (migration 0005), keyed by `wamid`. No `*_oauth_tokens` / `*_webhook_events` tables needed. |
-| 7 | **Idempotency via `wamid`** | Meta retries webhooks (at-least-once). Inbound message insert is idempotent on `(channel_id, external_id = wamid)`; the `agent.respond` job uses `singletonKey = wamid` so duplicate deliveries never double-reply. |
+| 6 | **No new DB tables; no OAuth token store** | WhatsApp auth is a long-lived System User access token kept as a Fly secret (no OAuth refresh dance, unlike Gmail). Inbound dedup reuses the existing `messages` UNIQUE `(channel_id, external_message_id)` index (migration 0005), keyed by `wamid`. No `*_oauth_tokens` / `*_webhook_events` tables needed. |
+| 7 | **Idempotency via `wamid`** | Meta retries webhooks (at-least-once). The `messages` UNIQUE `(channel_id, external_message_id = wamid)` index (migration 0005) **rejects** a duplicate insert — `MessageStore.insert` throws on the 2nd delivery, the webhook handler swallows it in its `.catch` (no second row, no crash), and the `agent.respond` job's `singletonKey = wamid` dedups so the agent never double-replies. |
 | 8 | **Ignore non-message events** | Meta posts `statuses` (sent/delivered/read) to the same webhook. The handler must 200-skip any payload whose `value` has no `messages[]`. |
 | 9 | **Meta provisioning + live Gate deferred (D)** | User decision: spec covers code + mocked tests; the Meta-side setup and go-live happen later by the user. |
 | 10 | **Reply threading via `context.message_id`** | When the runtime supplies `reply_to_message_id`, map it to WhatsApp's `context.message_id` so replies thread natively. Cheap; included. |
@@ -134,16 +134,19 @@ The code is built **config-driven**: it reads the resulting values from Fly secr
    b. Parse with WhatsAppWebhookSchema (Zod, .safeParse). Malformed → 200 skipped, log.
    c. If value has `statuses` and no `messages` → 200 skipped (delivery/read receipt).
    d. For each message of type "text":
-        whatsappMessageToInbound(value, msg) → InboundMessage{
-          channel_type:"whatsapp", external_id:<wamid>, from_handle:<wa_id>,
-          body:text.body, display_name:contacts[].profile.name, ...}
+        whatsappMessageToInbound(value, channelId) → InboundMessage{
+          channel_type:"whatsapp", external_message_id:<wamid>,
+          external_thread_id:<wa_id>, sender_identifier:<wa_id>,
+          sender_display_name:contacts[].profile.name ?? <wa_id>,
+          sender_handle:null, chat_type:"private", content:text.body,
+          attachments:[], received_at:<iso8601> }
    e. InboundMessageSchema.safeParse → processInbound(parsed, routerDeps)
    f. Return 200 immediately (Meta retries on non-2xx).
 4. processInbound:
    - IdentityResolver.resolveOrCreate (Contact keyed by wa_id on whatsapp channel)
    - ThreadStore.resolveOrCreate
    - Allow-list + kill-switch gate (see 4.4) → policy
-   - MessageStore.insert (idempotent on channel_id + external_id=wamid)
+   - MessageStore.insert (UNIQUE (channel_id, external_message_id=wamid) rejects duplicates)
    - if policy != "silent": enqueue agent.respond { ..., channelType:"whatsapp",
        externalChatId: wa_id } with singletonKey = wamid
 ```
@@ -289,7 +292,7 @@ WHATSAPP_ALLOWLIST=34XXXXXXXXX,...  # comma-separated wa_id (digits, no +); only
 ```
 
 ### 5.6 DB
-No new migration. Inbound dedup reuses `messages` UNIQUE `(channel_id, external_id)` (migration 0005). A `whatsapp` row in `channels` is bootstrapped at startup from env (mirroring telegram/email), not via migration.
+No new migration. Inbound dedup reuses `messages` UNIQUE `(channel_id, external_message_id)` (migration 0005). A `whatsapp` row in `channels` is bootstrapped at startup from env (mirroring telegram/email), not via migration.
 
 ## 6. Error handling & resilience
 
@@ -299,7 +302,7 @@ No new migration. Inbound dedup reuses `messages` UNIQUE `(channel_id, external_
 | Malformed payload | Zod `.safeParse` fails | 200 skipped, log warn (never 5xx — avoids Meta retry storms) |
 | Status/receipt event | `value.statuses` present, no `messages` | 200 skipped (expected, frequent) |
 | Non-text message (image/audio/...) | message `type !== "text"` | 200 skipped, log info (out of scope v1) |
-| Duplicate webhook (Meta retry) | `wamid` already in `messages.external_id` | idempotent insert no-ops; `singletonKey=wamid` dedups the job |
+| Duplicate webhook (Meta retry) | `wamid` already in `messages.external_message_id` | UNIQUE index rejects the 2nd insert → handler `.catch` swallows it (no 2nd row, no crash); `singletonKey=wamid` dedups the job |
 | Reply outside 24h window | Graph API error (e.g. 131047) | log error; reactive design means replies are in-window — surfaced if worker lag closes it |
 | Access token invalid/expired | Graph 401 on send | log error "rotate WHATSAPP_ACCESS_TOKEN"; reply dropped (no crash) |
 | Graph rate limit | 429 | log; rely on worker/pg-boss retry policy |
