@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WhatsAppWebhookSchema, WhatsAppTextMessageSchema } from "../src/schema.js";
+import { WhatsAppTextMessageSchema, WhatsAppWebhookSchema } from "../src/schema.js";
 
 const textWebhook = {
   object: "whatsapp_business_account",
@@ -14,7 +14,13 @@ const textWebhook = {
             metadata: { phone_number_id: "PNID", display_phone_number: "34999999999" },
             contacts: [{ profile: { name: "Marco" }, wa_id: "34611111111" }],
             messages: [
-              { from: "34611111111", id: "wamid.ABC", timestamp: "1716638400", type: "text", text: { body: "hola" } },
+              {
+                from: "34611111111",
+                id: "wamid.ABC",
+                timestamp: "1716638400",
+                type: "text",
+                text: { body: "hola" },
+              },
             ],
           },
         },
@@ -66,12 +72,24 @@ describe("WhatsAppWebhookSchema", () => {
 
 describe("WhatsAppTextMessageSchema", () => {
   it("recognizes a text message", () => {
-    const msg = { from: "34611111111", id: "wamid.ABC", timestamp: "1716638400", type: "text", text: { body: "hi" } };
+    const msg = {
+      from: "34611111111",
+      id: "wamid.ABC",
+      timestamp: "1716638400",
+      type: "text",
+      text: { body: "hi" },
+    };
     expect(WhatsAppTextMessageSchema.safeParse(msg).success).toBe(true);
   });
 
   it("rejects a non-text message (image)", () => {
-    const msg = { from: "34611111111", id: "wamid.IMG", timestamp: "1716638400", type: "image", image: { id: "media1" } };
+    const msg = {
+      from: "34611111111",
+      id: "wamid.IMG",
+      timestamp: "1716638400",
+      type: "image",
+      image: { id: "media1" },
+    };
     expect(WhatsAppTextMessageSchema.safeParse(msg).success).toBe(false);
   });
 });

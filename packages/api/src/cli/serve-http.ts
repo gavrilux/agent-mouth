@@ -1,6 +1,5 @@
 import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
 import { InboundMessageSchema } from "@agent-mouth/core";
-import { handleEmailWebhook, type EmailWebhookDeps } from "../email-webhook.js";
 import {
   SupabaseContactStore,
   SupabaseEmailTokenStore,
@@ -13,8 +12,8 @@ import {
   SupabaseWorkspaceStore,
 } from "@agent-mouth/storage-supabase";
 import {
-  GmailDriver,
   EmailTransport,
+  GmailDriver,
   decryptToken,
   verifyGooglePushJwt,
 } from "@agent-mouth/transport-email";
@@ -30,12 +29,13 @@ import {
 } from "@agent-mouth/transport-whatsapp";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { loadConfigFromEnv } from "../config.js";
+import { type EmailWebhookDeps, handleEmailWebhook } from "../email-webhook.js";
 import { forwardToBridge } from "../forwarders/bridge.js";
 import { logger } from "../logger.js";
 import { type RouterDeps, processInbound } from "../router.js";
 import { buildServer } from "../server.js";
-import { startWorker } from "../worker.js";
 import { TransportRegistry } from "../transports/registry.js";
+import { startWorker } from "../worker.js";
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {

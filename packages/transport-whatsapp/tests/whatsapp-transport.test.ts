@@ -30,7 +30,8 @@ describe("WhatsAppTransport.send", () => {
     expect(r.message_id).toBe("wamid.OUT");
     expect(r.timestamp).toBeInstanceOf(Date);
 
-    const [url, init] = (fetchMock as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[0]!;
+    const [url, init] = (fetchMock as unknown as { mock: { calls: [string, RequestInit][] } }).mock
+      .calls[0]!;
     expect(url).toBe("https://graph.facebook.com/v21.0/PNID/messages");
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer TOKEN");
     const sent = JSON.parse(init.body as string);
@@ -48,7 +49,8 @@ describe("WhatsAppTransport.send", () => {
     vi.stubGlobal("fetch", fetchMock);
     const t = new WhatsAppTransport(cfg);
     await t.send({ to: "34611111111", body: "re", reply_to_message_id: "wamid.IN" });
-    const init = (fetchMock as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[0]![1];
+    const init = (fetchMock as unknown as { mock: { calls: [string, RequestInit][] } }).mock
+      .calls[0]![1];
     const sent = JSON.parse(init.body as string);
     expect(sent.context).toEqual({ message_id: "wamid.IN" });
   });
@@ -58,7 +60,8 @@ describe("WhatsAppTransport.send", () => {
     vi.stubGlobal("fetch", fetchMock);
     const t = new WhatsAppTransport(cfg);
     await t.send({ to: "34611111111", body: "no-reply" });
-    const init = (fetchMock as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[0]![1];
+    const init = (fetchMock as unknown as { mock: { calls: [string, RequestInit][] } }).mock
+      .calls[0]![1];
     const sent = JSON.parse(init.body as string);
     expect(sent.context).toBeUndefined();
   });

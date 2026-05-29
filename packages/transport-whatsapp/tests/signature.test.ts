@@ -22,7 +22,7 @@ describe("verifyMetaSignature", () => {
 
   it("rejects when the body was tampered with", () => {
     const header = sign(rawBody, APP_SECRET);
-    expect(verifyMetaSignature(rawBody + "x", header, APP_SECRET)).toBe(false);
+    expect(verifyMetaSignature(`${rawBody}x`, header, APP_SECRET)).toBe(false);
   });
 
   it("rejects a missing or malformed header", () => {

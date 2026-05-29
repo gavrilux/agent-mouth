@@ -10,10 +10,7 @@ import { WhatsAppTextMessageSchema, WhatsAppValueSchema } from "./schema.js";
  * The contact display name comes from contacts[0].profile.name, falling back to
  * the message sender's wa_id when absent.
  */
-export function whatsappMessageToInbound(
-  value: unknown,
-  channelId: string,
-): InboundMessage[] {
+export function whatsappMessageToInbound(value: unknown, channelId: string): InboundMessage[] {
   const parsedValue = WhatsAppValueSchema.safeParse(value);
   if (!parsedValue.success) return [];
   const v = parsedValue.data;

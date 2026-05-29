@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { processInbound, type RouterDeps } from "../src/router.js";
+import { type RouterDeps, processInbound } from "../src/router.js";
 
 const inboundWhatsapp = {
   channel_type: "whatsapp" as const,
@@ -22,22 +22,63 @@ function makeDeps(): RouterDeps {
     bridgeForwardUrl: null,
     identityResolver: {
       resolveOrCreate: vi.fn(async () => ({
-        contact: { id: "c1", workspace_id: "ws1", display_name: "Marco", notes: "", metadata: {}, created_at: "2026-05-28T00:00:00.000Z" },
-        channel: { id: "ch1", workspace_id: "ws1", type: "whatsapp", config: {}, status: "active", created_at: "2026-05-28T00:00:00.000Z" },
-        channel_identity: { id: "ci1", contact_id: "c1", channel_id: "ch1", identifier: "34611111111", verified: false },
+        contact: {
+          id: "c1",
+          workspace_id: "ws1",
+          display_name: "Marco",
+          notes: "",
+          metadata: {},
+          created_at: "2026-05-28T00:00:00.000Z",
+        },
+        channel: {
+          id: "ch1",
+          workspace_id: "ws1",
+          type: "whatsapp",
+          config: {},
+          status: "active",
+          created_at: "2026-05-28T00:00:00.000Z",
+        },
+        channel_identity: {
+          id: "ci1",
+          contact_id: "c1",
+          channel_id: "ch1",
+          identifier: "34611111111",
+          verified: false,
+        },
         created: false,
       })),
     } as never,
     threadStore: {
-      resolveOrCreate: vi.fn(async () => ({ id: "th1", workspace_id: "ws1", contact_id: "c1", channel_id: "ch1", external_thread_id: "34611111111", related_thread_ids: [], last_message_at: null, closed: false, notes_last_updated_at: null, created_at: "2026-05-28T00:00:00.000Z" })),
+      resolveOrCreate: vi.fn(async () => ({
+        id: "th1",
+        workspace_id: "ws1",
+        contact_id: "c1",
+        channel_id: "ch1",
+        external_thread_id: "34611111111",
+        related_thread_ids: [],
+        last_message_at: null,
+        closed: false,
+        notes_last_updated_at: null,
+        created_at: "2026-05-28T00:00:00.000Z",
+      })),
     } as never,
     policyEngine: {
       evaluate: vi.fn(async () => ({
-        id: "p1", workspace_id: "ws1", contact_id: null, channel_type: null,
-        policy: "auto", system_prompt: "", rules: {}, priority: 0,
-        created_at: "2026-05-28T00:00:00.000Z", model_id: null,
-        rate_limit_per_hour: 30, max_tokens_out: 8000, max_tool_calls: 10,
-        forbidden_topics_regex: [], escalate_triggers_regex: [],
+        id: "p1",
+        workspace_id: "ws1",
+        contact_id: null,
+        channel_type: null,
+        policy: "auto",
+        system_prompt: "",
+        rules: {},
+        priority: 0,
+        created_at: "2026-05-28T00:00:00.000Z",
+        model_id: null,
+        rate_limit_per_hour: 30,
+        max_tokens_out: 8000,
+        max_tool_calls: 10,
+        forbidden_topics_regex: [],
+        escalate_triggers_regex: [],
         allowed_tools: '["*"]',
       })),
     } as never,

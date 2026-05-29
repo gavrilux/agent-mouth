@@ -48,9 +48,8 @@ export const sendMessageTool: ToolDef = {
     }
 
     // Pick transport
-    const transport = (channel && ctx.transportRegistry)
-      ? ctx.transportRegistry.get(channel)
-      : ctx.transport;
+    const transport =
+      channel && ctx.transportRegistry ? ctx.transportRegistry.get(channel) : ctx.transport;
 
     return transport.send({
       to: parsed.to,

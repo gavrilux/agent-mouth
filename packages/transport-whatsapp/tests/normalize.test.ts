@@ -7,7 +7,13 @@ function value(overrides: Record<string, unknown> = {}) {
     metadata: { phone_number_id: "PNID", display_phone_number: "34999999999" },
     contacts: [{ profile: { name: "Marco" }, wa_id: "34611111111" }],
     messages: [
-      { from: "34611111111", id: "wamid.ABC", timestamp: "1716638400", type: "text", text: { body: "hola" } },
+      {
+        from: "34611111111",
+        id: "wamid.ABC",
+        timestamp: "1716638400",
+        type: "text",
+        text: { body: "hola" },
+      },
     ],
     ...overrides,
   };
@@ -34,8 +40,20 @@ describe("whatsappMessageToInbound", () => {
   it("normalizes multiple text messages in one payload", () => {
     const v = value({
       messages: [
-        { from: "34611111111", id: "wamid.A", timestamp: "1716638400", type: "text", text: { body: "uno" } },
-        { from: "34611111111", id: "wamid.B", timestamp: "1716638401", type: "text", text: { body: "dos" } },
+        {
+          from: "34611111111",
+          id: "wamid.A",
+          timestamp: "1716638400",
+          type: "text",
+          text: { body: "uno" },
+        },
+        {
+          from: "34611111111",
+          id: "wamid.B",
+          timestamp: "1716638401",
+          type: "text",
+          text: { body: "dos" },
+        },
       ],
     });
     const out = whatsappMessageToInbound(v, "ch");
@@ -51,8 +69,20 @@ describe("whatsappMessageToInbound", () => {
   it("skips non-text messages (image)", () => {
     const v = value({
       messages: [
-        { from: "34611111111", id: "wamid.IMG", timestamp: "1716638400", type: "image", image: { id: "media1" } },
-        { from: "34611111111", id: "wamid.TXT", timestamp: "1716638401", type: "text", text: { body: "ok" } },
+        {
+          from: "34611111111",
+          id: "wamid.IMG",
+          timestamp: "1716638400",
+          type: "image",
+          image: { id: "media1" },
+        },
+        {
+          from: "34611111111",
+          id: "wamid.TXT",
+          timestamp: "1716638401",
+          type: "text",
+          text: { body: "ok" },
+        },
       ],
     });
     const out = whatsappMessageToInbound(v, "ch");

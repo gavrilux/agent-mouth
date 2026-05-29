@@ -10,13 +10,14 @@ describe("send_message tool with channel='whatsapp'", () => {
     const tgTransport = makeFakeTransport();
     const waTransport = makeFakeTransport();
     const registry = {
-      get: (type: "telegram" | "email" | "whatsapp") => (type === "whatsapp" ? waTransport : tgTransport),
+      get: (type: "telegram" | "email" | "whatsapp") =>
+        type === "whatsapp" ? waTransport : tgTransport,
     };
 
-    await sendMessageTool.handler(
-      { body: "hola", channel: "whatsapp", to: "34611111111" },
-      { transport: tgTransport as never, transportRegistry: registry as never } as never,
-    );
+    await sendMessageTool.handler({ body: "hola", channel: "whatsapp", to: "34611111111" }, {
+      transport: tgTransport as never,
+      transportRegistry: registry as never,
+    } as never);
     expect(waTransport.send).toHaveBeenCalledWith(
       expect.objectContaining({ to: "34611111111", body: "hola" }),
     );
@@ -27,20 +28,20 @@ describe("send_message tool with channel='whatsapp'", () => {
     const tgTransport = makeFakeTransport();
     const waTransport = makeFakeTransport();
     const registry = {
-      get: (type: "telegram" | "email" | "whatsapp") => (type === "whatsapp" ? waTransport : tgTransport),
+      get: (type: "telegram" | "email" | "whatsapp") =>
+        type === "whatsapp" ? waTransport : tgTransport,
     };
     const threadStore = { findById: vi.fn(async () => ({ id: "th1", channel_id: "ch1" })) };
-    const channelStore = { findById: vi.fn(async () => ({ id: "ch1", type: "whatsapp" as const })) };
+    const channelStore = {
+      findById: vi.fn(async () => ({ id: "ch1", type: "whatsapp" as const })),
+    };
 
-    await sendMessageTool.handler(
-      { body: "hola", to: "34611111111", reply_to_message_id: "th1" },
-      {
-        transport: tgTransport as never,
-        transportRegistry: registry as never,
-        threadStore: threadStore as never,
-        channelStore: channelStore as never,
-      } as never,
-    );
+    await sendMessageTool.handler({ body: "hola", to: "34611111111", reply_to_message_id: "th1" }, {
+      transport: tgTransport as never,
+      transportRegistry: registry as never,
+      threadStore: threadStore as never,
+      channelStore: channelStore as never,
+    } as never);
     expect(waTransport.send).toHaveBeenCalled();
     expect(tgTransport.send).not.toHaveBeenCalled();
   });
@@ -49,7 +50,8 @@ describe("send_message tool with channel='whatsapp'", () => {
     const tgTransport = makeFakeTransport();
     const waTransport = makeFakeTransport();
     const registry = {
-      get: (type: "telegram" | "email" | "whatsapp") => (type === "whatsapp" ? waTransport : tgTransport),
+      get: (type: "telegram" | "email" | "whatsapp") =>
+        type === "whatsapp" ? waTransport : tgTransport,
     };
 
     await sendMessageTool.handler(

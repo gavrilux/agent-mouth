@@ -1,5 +1,5 @@
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createHmac } from "node:crypto";
+import { InboundMessageSchema } from "@agent-mouth/core";
 import {
   SupabaseIdentityResolver,
   SupabaseMessageStore,
@@ -7,8 +7,8 @@ import {
   SupabaseThreadStore,
 } from "@agent-mouth/storage-supabase";
 import { verifyMetaSignature, whatsappMessageToInbound } from "@agent-mouth/transport-whatsapp";
-import { InboundMessageSchema } from "@agent-mouth/core";
-import { processInbound, type RouterDeps } from "../src/router.js";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { type RouterDeps, processInbound } from "../src/router.js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY!;
@@ -34,7 +34,12 @@ async function ensureWhatsappChannel(): Promise<string> {
   const ins = await fetch(`${SUPABASE_URL}/rest/v1/channels`, {
     method: "POST",
     headers: { ...restHeaders(), Prefer: "return=representation" },
-    body: JSON.stringify({ workspace_id: WORKSPACE_ID, type: "whatsapp", config: {}, status: "active" }),
+    body: JSON.stringify({
+      workspace_id: WORKSPACE_ID,
+      type: "whatsapp",
+      config: {},
+      status: "active",
+    }),
   });
   const insRows = (await ins.json()) as Array<{ id: string }>;
   return insRows[0]!.id;
@@ -53,7 +58,9 @@ function buildWebhook(wamid: string, from: string, body: string) {
               messaging_product: "whatsapp",
               metadata: { phone_number_id: "PNID" },
               contacts: [{ profile: { name: "Marco" }, wa_id: from }],
-              messages: [{ from, id: wamid, timestamp: "1716638400", type: "text", text: { body } }],
+              messages: [
+                { from, id: wamid, timestamp: "1716638400", type: "text", text: { body } },
+              ],
             },
           },
         ],
@@ -139,7 +146,9 @@ describe.skipIf(SKIP)("whatsapp inbound flow (Supabase real)", () => {
     // The webhook handler catches this in its `.catch` and the duplicate never
     // double-replies (the worker also dedups via singletonKey=messageId). The
     // invariant we assert here is "exactly one row exists for this wamid".
-    await expect(processInbound(parsed, makeRouterDeps())).rejects.toThrow(/message insert failed/i);
+    await expect(processInbound(parsed, makeRouterDeps())).rejects.toThrow(
+      /message insert failed/i,
+    );
 
     const countRes = await fetch(
       `${SUPABASE_URL}/rest/v1/messages?channel_id=eq.${channelId}&external_message_id=eq.${wamid}&select=id`,
