@@ -177,6 +177,9 @@ importers:
       '@agent-mouth/transport-telegram':
         specifier: workspace:*
         version: link:../transport-telegram
+      '@agent-mouth/transport-whatsapp':
+        specifier: workspace:*
+        version: link:../transport-whatsapp
       '@agent-mouth/vector-store':
         specifier: workspace:*
         version: link:../vector-store

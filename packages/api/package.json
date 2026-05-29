@@ -30,6 +30,7 @@
     "@agent-mouth/queue-pgboss": "workspace:*",
     "@agent-mouth/transport-email": "workspace:*",
     "@agent-mouth/transport-telegram": "workspace:*",
+    "@agent-mouth/transport-whatsapp": "workspace:*",
     "@agent-mouth/storage-supabase": "workspace:*",
     "@hono/node-server": "^1.13.0",
     "grammy": "^1.30.0",

@@ -23,6 +23,11 @@ import {
   TelegramTransport,
   telegramUpdateToInbound,
 } from "@agent-mouth/transport-telegram";
+import {
+  WhatsAppTransport,
+  verifyMetaSignature,
+  whatsappMessageToInbound,
+} from "@agent-mouth/transport-whatsapp";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { loadConfigFromEnv } from "../config.js";
 import { forwardToBridge } from "../forwarders/bridge.js";
@@ -52,6 +57,30 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   const json = JSON.stringify(body);
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(json);
+}
+
+/**
+ * Meta GET verification handshake. Returns the challenge string to echo (200)
+ * when mode=subscribe and the verify token matches; otherwise null (caller → 403).
+ */
+export function verifyWhatsAppHandshake(url: URL, verifyToken: string): string | null {
+  const mode = url.searchParams.get("hub.mode");
+  const token = url.searchParams.get("hub.verify_token");
+  const challenge = url.searchParams.get("hub.challenge");
+  if (mode === "subscribe" && token === verifyToken && challenge !== null) {
+    return challenge;
+  }
+  return null;
+}
+
+/** Read the raw request body as a UTF-8 string (needed verbatim for HMAC signature checks). */
+async function readRawBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    req.on("error", reject);
+  });
 }
 
 export async function serveHttp(): Promise<void> {
@@ -111,6 +140,12 @@ export async function serveHttp(): Promise<void> {
   let transportRegistry: TransportRegistry | null = null;
   let emailFetchDeps: NonNullable<Parameters<typeof startWorker>[0]["emailFetchDeps"]> | undefined =
     undefined;
+
+  // Phase 4a — WhatsApp. `whatsappTransport`/`whatsappAppSecret` stay null until
+  // ENABLE_WHATSAPP_TRANSPORT=true with full config; until then /whatsapp-webhook → 503.
+  let whatsappTransport: WhatsAppTransport | null = null;
+  let whatsappAppSecret: string | null = null;
+  let whatsappVerifyToken: string | null = null;
 
   // Temporary holder for the parts of emailWebhookDeps that don't need workerCtl.queue.
   // Consumed after startWorker() resolves.
@@ -197,6 +232,87 @@ export async function serveHttp(): Promise<void> {
         logger.error(
           { err: String(err) },
           "email transport bootstrap failed; continuing without email",
+        );
+      }
+    }
+  }
+
+  // Phase 4a — bootstrap WhatsAppTransport if configured
+  const enableWhatsapp = process.env.ENABLE_WHATSAPP_TRANSPORT === "true";
+  if (enableWhatsapp) {
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    const appSecret = process.env.WHATSAPP_APP_SECRET;
+    const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+    const graphVersion = process.env.WHATSAPP_GRAPH_VERSION ?? "v21.0";
+    const displayPhoneNumber = process.env.WHATSAPP_DISPLAY_PHONE_NUMBER;
+
+    if (!phoneNumberId || !accessToken || !appSecret || !verifyToken) {
+      logger.warn(
+        "ENABLE_WHATSAPP_TRANSPORT=true but missing required env vars (WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_ACCESS_TOKEN, WHATSAPP_APP_SECRET, WHATSAPP_VERIFY_TOKEN); WhatsAppTransport will not boot",
+      );
+    } else {
+      try {
+        const transport = new WhatsAppTransport({
+          phone_number_id: phoneNumberId,
+          access_token: accessToken,
+          graph_version: graphVersion,
+          display_phone_number: displayPhoneNumber,
+        });
+        await transport.init({});
+
+        // Ensure a whatsapp channel row exists for this workspace (mirrors the
+        // email channel bootstrap in email-setup.ts). Supabase REST over HTTPS.
+        const restHeaders = {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          "Content-Type": "application/json",
+        };
+        const lookupUrl = `${supabaseUrl}/rest/v1/channels?workspace_id=eq.${workspace.id}&type=eq.whatsapp&select=id&limit=1`;
+        const lookupRes = await fetch(lookupUrl, { headers: restHeaders });
+        if (!lookupRes.ok) {
+          throw new Error(
+            `whatsapp channel lookup failed: ${lookupRes.status} ${await lookupRes.text()}`,
+          );
+        }
+        const lookupRows = (await lookupRes.json()) as Array<{ id: string }>;
+        if (lookupRows.length === 0) {
+          const insertRes = await fetch(`${supabaseUrl}/rest/v1/channels`, {
+            method: "POST",
+            headers: { ...restHeaders, Prefer: "return=representation" },
+            body: JSON.stringify({
+              workspace_id: workspace.id,
+              type: "whatsapp",
+              config: {
+                phone_number_id: phoneNumberId,
+                display_phone_number: displayPhoneNumber ?? null,
+              },
+              status: "active",
+            }),
+          });
+          if (!insertRes.ok) {
+            throw new Error(
+              `whatsapp channel insert failed: ${insertRes.status} ${await insertRes.text()}`,
+            );
+          }
+        }
+
+        // Reuse the registry the email block may have created; else create it
+        // and register telegram first.
+        if (!transportRegistry) {
+          transportRegistry = new TransportRegistry();
+          transportRegistry.register("telegram", telegramTransport);
+        }
+        transportRegistry.register("whatsapp", transport);
+
+        whatsappTransport = transport;
+        whatsappAppSecret = appSecret;
+        whatsappVerifyToken = verifyToken;
+        logger.info({ phoneNumberId }, "whatsapp transport bootstrapped");
+      } catch (err) {
+        logger.error(
+          { err: String(err) },
+          "whatsapp transport bootstrap failed; continuing without whatsapp",
         );
       }
     }
@@ -322,6 +438,99 @@ export async function serveHttp(): Promise<void> {
           return;
         }
         await handleEmailWebhook(req, res, emailWebhookDeps);
+        return;
+      }
+
+      if (url.pathname === "/whatsapp-webhook" && req.method === "GET") {
+        if (!whatsappVerifyToken) {
+          sendJson(res, 503, { error: "whatsapp transport not configured" });
+          return;
+        }
+        const challenge = verifyWhatsAppHandshake(url, whatsappVerifyToken);
+        if (challenge === null) {
+          sendJson(res, 403, { error: "verification failed" });
+          return;
+        }
+        res.writeHead(200, { "Content-Type": "text/plain" });
+        res.end(challenge);
+        return;
+      }
+
+      if (url.pathname === "/whatsapp-webhook" && req.method === "POST") {
+        if (!whatsappTransport || !whatsappAppSecret) {
+          sendJson(res, 503, { error: "whatsapp transport not configured" });
+          return;
+        }
+        const rawBody = await readRawBody(req);
+        const sigHeader = req.headers["x-hub-signature-256"];
+        const sig = Array.isArray(sigHeader) ? sigHeader[0] : sigHeader;
+        if (!verifyMetaSignature(rawBody, sig ?? undefined, whatsappAppSecret)) {
+          logger.warn("whatsapp-webhook signature verification failed");
+          sendJson(res, 403, { error: "invalid signature" });
+          return;
+        }
+        let body: unknown;
+        try {
+          body = rawBody ? JSON.parse(rawBody) : undefined;
+        } catch {
+          logger.warn("whatsapp-webhook body not JSON");
+          sendJson(res, 200, { ok: true, skipped: "malformed" });
+          return;
+        }
+        // Resolve the whatsapp channel id once (for raw_payload provenance).
+        let whatsappChannelId = "";
+        try {
+          const chUrl = `${supabaseUrl}/rest/v1/channels?workspace_id=eq.${workspace.id}&type=eq.whatsapp&select=id&limit=1`;
+          const chRes = await fetch(chUrl, {
+            headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+          });
+          if (chRes.ok) {
+            const rows = (await chRes.json()) as Array<{ id: string }>;
+            whatsappChannelId = rows[0]?.id ?? "";
+          }
+        } catch {
+          // non-fatal — provenance only
+        }
+        const parsedBody = body as {
+          entry?: { changes?: { field: string; value: unknown }[] }[];
+        };
+        const inbounds = (parsedBody.entry ?? [])
+          .flatMap((e) => e.changes ?? [])
+          .filter((c) => c.field === "messages")
+          .flatMap((c) => whatsappMessageToInbound(c.value, whatsappChannelId));
+        // Respond 200 immediately so Meta does not retry; process inline.
+        sendJson(res, 200, { ok: true, count: inbounds.length });
+        for (const inbound of inbounds) {
+          const parsed = InboundMessageSchema.safeParse(inbound);
+          if (!parsed.success) {
+            logger.warn({ issues: parsed.error.issues }, "whatsapp inbound schema mismatch");
+            continue;
+          }
+          processInbound(parsed.data, routerDeps)
+            .then((result) => {
+              logger.info({ result }, "whatsapp webhook processed");
+              if (result.kind === "persisted" && result.policy !== "silent" && workerCtl) {
+                workerCtl.queue
+                  .send(
+                    "agent.respond",
+                    {
+                      workspaceId: routerDeps.workspaceId,
+                      contactId: result.contactId,
+                      threadId: result.threadId,
+                      channelType: result.channelType,
+                      channelId: result.channelId,
+                      channelIdentityId: result.channelIdentityId,
+                      externalChatId: result.externalChatId,
+                      messageId: result.messageId,
+                      messageContent: result.messageContent,
+                    },
+                    { singletonKey: result.messageId },
+                  )
+                  .catch((err) => logger.error({ err }, "enqueue agent.respond (whatsapp) failed"));
+              }
+            })
+            .catch((err) => logger.error({ err }, "whatsapp processInbound failed"));
+        }
         return;
       }
 
