@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createHmac } from "node:crypto";
 import {
   SupabaseIdentityResolver,
@@ -77,10 +77,17 @@ function makeRouterDeps(): RouterDeps {
 
 describe.skipIf(SKIP)("whatsapp inbound flow (Supabase real)", () => {
   let channelId: string;
+  const origAuto = process.env.ENABLE_WHATSAPP_AUTO;
+  const origList = process.env.WHATSAPP_ALLOWLIST;
 
   beforeAll(async () => {
     channelId = await ensureWhatsappChannel();
     process.env.ENABLE_WHATSAPP_AUTO = "true";
+  });
+
+  afterEach(() => {
+    process.env.ENABLE_WHATSAPP_AUTO = origAuto;
+    process.env.WHATSAPP_ALLOWLIST = origList;
   });
 
   it("verified+normalized signed webhook persists a Contact/Thread/Message", async () => {
@@ -117,6 +124,9 @@ describe.skipIf(SKIP)("whatsapp inbound flow (Supabase real)", () => {
     const from = "34611111111";
     process.env.WHATSAPP_ALLOWLIST = from;
     const webhook = buildWebhook(wamid, from, "dup test");
+    const rawBody = JSON.stringify(webhook);
+    const sig = `sha256=${createHmac("sha256", APP_SECRET).update(rawBody, "utf8").digest("hex")}`;
+    expect(verifyMetaSignature(rawBody, sig, APP_SECRET)).toBe(true);
     const inbound = whatsappMessageToInbound(webhook.entry[0]!.changes[0]!.value, channelId)[0]!;
     const parsed = InboundMessageSchema.parse(inbound);
 
@@ -145,6 +155,9 @@ describe.skipIf(SKIP)("whatsapp inbound flow (Supabase real)", () => {
     const from = "34699999999";
     process.env.WHATSAPP_ALLOWLIST = "34600000000"; // does NOT include `from`
     const webhook = buildWebhook(wamid, from, "no reply");
+    const rawBody = JSON.stringify(webhook);
+    const sig = `sha256=${createHmac("sha256", APP_SECRET).update(rawBody, "utf8").digest("hex")}`;
+    expect(verifyMetaSignature(rawBody, sig, APP_SECRET)).toBe(true);
     const inbound = whatsappMessageToInbound(webhook.entry[0]!.changes[0]!.value, channelId)[0]!;
     const parsed = InboundMessageSchema.parse(inbound);
 
