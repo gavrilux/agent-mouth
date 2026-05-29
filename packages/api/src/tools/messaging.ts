@@ -7,13 +7,13 @@ const FilterEnum = z.enum(["mentions", "replies", "all"]);
 export const sendMessageTool: ToolDef = {
   name: "send_message",
   description:
-    "Send a message. For Telegram: `to` is a numeric chat id or handle. For Email: `to` is an email address; `subject` should be provided for new threads. If `channel` is omitted, the tool infers it from `reply_to_message_id`'s thread, falling back to the default transport.",
+    "Send a message. For Telegram: `to` is a numeric chat id or handle. For Email: `to` is an email address; `subject` should be provided for new threads. For WhatsApp: `to` is the recipient `wa_id` (digits, no '+'); `subject` is ignored. If `channel` is omitted, the tool infers it from `reply_to_message_id`'s thread, falling back to the default transport.",
   inputSchema: {
     type: "object",
     required: ["body"],
     properties: {
       to: { type: "string" },
-      channel: { type: "string", enum: ["telegram", "email"] },
+      channel: { type: "string", enum: ["telegram", "email", "whatsapp"] },
       body: { type: "string", minLength: 1 },
       reply_to_message_id: { type: "string" },
       subject: { type: "string" },
@@ -24,7 +24,7 @@ export const sendMessageTool: ToolDef = {
     const parsed = z
       .object({
         to: z.string().optional(),
-        channel: z.enum(["telegram", "email"]).optional(),
+        channel: z.enum(["telegram", "email", "whatsapp"]).optional(),
         body: z.string().min(1),
         reply_to_message_id: z.string().optional(),
         subject: z.string().optional(),
@@ -38,7 +38,7 @@ export const sendMessageTool: ToolDef = {
         const thread = await ctx.threadStore.findById(parsed.reply_to_message_id);
         if (thread) {
           const ch = await ctx.channelStore.findById(thread.channel_id);
-          if (ch && (ch.type === "telegram" || ch.type === "email")) {
+          if (ch && (ch.type === "telegram" || ch.type === "email" || ch.type === "whatsapp")) {
             channel = ch.type;
           }
         }
