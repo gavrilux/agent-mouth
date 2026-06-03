@@ -28,6 +28,8 @@ COPY packages/knowledge-source/package.json packages/knowledge-source/tsconfig.j
 COPY packages/agent-tools/package.json packages/agent-tools/tsconfig.json packages/agent-tools/
 # Phase 1b package
 COPY packages/transport-email/package.json packages/transport-email/tsconfig.json packages/transport-email/
+# Phase 4a package
+COPY packages/transport-whatsapp/package.json packages/transport-whatsapp/tsconfig.json packages/transport-whatsapp/
 COPY packages/api/package.json packages/api/tsconfig.json packages/api/
 COPY apps/cli/package.json apps/cli/tsconfig.json apps/cli/
 
@@ -54,6 +56,8 @@ COPY packages/knowledge-source/src packages/knowledge-source/src
 COPY packages/agent-tools/src packages/agent-tools/src
 # Phase 1b sources
 COPY packages/transport-email/src packages/transport-email/src
+# Phase 4a source
+COPY packages/transport-whatsapp/src packages/transport-whatsapp/src
 COPY packages/api/src packages/api/src
 COPY apps/cli/src apps/cli/src
 RUN pnpm -r build
