@@ -155,10 +155,23 @@ export async function serveHttp(): Promise<void> {
     config: { audience: string; serviceAccountEmail: string };
   } | null = null;
 
-  await telegramTransport.init({
-    ...config.telegram,
-    offsetStore,
-  } as TelegramConfig);
+  // A transport's auth failure (e.g. a revoked AGENT_MOUTH_BOT_TOKEN → getMe 401)
+  // must NOT crash the whole multi-channel server. Mirror the email/whatsapp
+  // bootstrap pattern below: log loudly and continue so /health, email, whatsapp
+  // and /mcp stay up. Telegram rejoins automatically once the token is fixed and
+  // the app reboots.
+  try {
+    await telegramTransport.init({
+      ...config.telegram,
+      offsetStore,
+    } as TelegramConfig);
+    logger.info({ handle: config.telegram?.handle }, "telegram transport initialized");
+  } catch (err) {
+    logger.error(
+      { err: String(err) },
+      "telegram transport init failed (check AGENT_MOUTH_BOT_TOKEN); continuing without telegram",
+    );
+  }
 
   // Phase 1b — bootstrap EmailTransport if configured
   const enableEmail = process.env.ENABLE_EMAIL_TRANSPORT === "true";
