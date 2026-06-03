@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
 import { InboundMessageSchema } from "@agent-mouth/core";
 import {
@@ -29,6 +30,7 @@ import {
 } from "@agent-mouth/transport-whatsapp";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { loadConfigFromEnv } from "../config.js";
+import { buildEmailReauthUrl, completeEmailReauth, createStateStore } from "../email-reauth.js";
 import { type EmailWebhookDeps, handleEmailWebhook } from "../email-webhook.js";
 import { forwardToBridge } from "../forwarders/bridge.js";
 import { logger } from "../logger.js";
@@ -131,6 +133,10 @@ export async function serveHttp(): Promise<void> {
 
   const PORT = Number(process.env.PORT ?? 3000);
   const AUTH_TOKEN = process.env.AGENT_MOUTH_AUTH_TOKEN;
+  // One-click email re-auth (email-reauth.ts): public base for the OAuth redirect
+  // + in-memory single-use CSRF state store for the start→callback round-trip.
+  const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL ?? "https://agent-mouth.fly.dev";
+  const emailReauthStates = createStateStore();
 
   const telegramTransport = new TelegramTransport();
 
@@ -451,6 +457,75 @@ export async function serveHttp(): Promise<void> {
           return;
         }
         await handleEmailWebhook(req, res, emailWebhookDeps);
+        return;
+      }
+
+      // One-click email OAuth re-auth. Gated by ?token=<AGENT_MOUTH_AUTH_TOKEN>.
+      // Token (Google Testing mode) dies every 7 days; this makes re-consent a link.
+      if (url.pathname === "/email-oauth-start" && req.method === "GET") {
+        if (!AUTH_TOKEN || url.searchParams.get("token") !== AUTH_TOKEN) {
+          sendJson(res, 401, { error: "unauthorized" });
+          return;
+        }
+        const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+        if (!clientId) {
+          sendJson(res, 503, { error: "email oauth not configured" });
+          return;
+        }
+        const state = randomUUID();
+        emailReauthStates.issue(state, Date.now());
+        const authUrl = buildEmailReauthUrl({
+          clientId,
+          redirectUri: `${PUBLIC_BASE_URL}/email-oauth-callback`,
+          state,
+        });
+        res.writeHead(302, { Location: authUrl });
+        res.end();
+        return;
+      }
+
+      if (url.pathname === "/email-oauth-callback" && req.method === "GET") {
+        const code = url.searchParams.get("code");
+        const state = url.searchParams.get("state");
+        // Reject anything without a valid single-use CSRF state we issued.
+        if (!code || !state || !emailReauthStates.consume(state, Date.now())) {
+          res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
+          res.end(
+            "<h1>Solicitud inválida o caducada</h1><p>Vuelve a abrir el enlace de re-autorización.</p>",
+          );
+          return;
+        }
+        const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+        const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+        const encryptionKey = process.env.AGENT_MOUTH_TOKEN_ENCRYPTION_KEY;
+        const topicName = process.env.GOOGLE_PUBSUB_TOPIC;
+        if (!clientId || !clientSecret || !encryptionKey || !topicName) {
+          res.writeHead(503, { "Content-Type": "text/html; charset=utf-8" });
+          res.end("<h1>Email OAuth no configurado</h1>");
+          return;
+        }
+        try {
+          const result = await completeEmailReauth({
+            code,
+            clientId,
+            clientSecret,
+            redirectUri: `${PUBLIC_BASE_URL}/email-oauth-callback`,
+            encryptionKey,
+            topicName,
+            supabaseUrl,
+            supabaseKey,
+            workspaceId: workspace.id,
+          });
+          logger.info({ email: result.email_address }, "email re-auth completed via web flow");
+          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+          res.end(
+            `<h1>✅ Email re-autorizado</h1><p><b>${result.email_address}</b></p><p>Watch hasta ${result.watch_expiration}.</p><p>Ya puedes cerrar esta pestaña.</p>`,
+          );
+        } catch (err) {
+          logger.error({ err: String(err) }, "email re-auth via web flow failed");
+          res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" });
+          res.end("<h1>Error al re-autorizar</h1><p>Revisa los logs del servidor.</p>");
+        }
         return;
       }
 
