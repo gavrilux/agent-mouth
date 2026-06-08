@@ -345,10 +345,6 @@ export async function startWorker(
     const reauthUrl = `${wd.publicBaseUrl}/email-oauth-start?token=${wd.authToken}`;
     const expectedWebhook = `${wd.publicBaseUrl}/telegram-webhook`;
     const stateStore = new PgWatchdogStateStore(deps.databaseUrl);
-    const auditStore = new SupabaseAuditLogStore({
-      url: deps.supabaseUrl,
-      anonKey: deps.supabaseAnonKey,
-    });
     const tokenStore = deps.emailFetchDeps?.tokenStore;
     const now = () => new Date();
 
@@ -404,14 +400,22 @@ export async function startWorker(
       });
     });
 
+    const intervalMin =
+      Number.isInteger(wd.intervalMin) && wd.intervalMin > 0 ? wd.intervalMin : 60;
+    if (intervalMin !== wd.intervalMin) {
+      logger.error(
+        { configured: wd.intervalMin },
+        "[watchdog] WATCHDOG_INTERVAL_MIN inválido — usando 60 por defecto",
+      );
+    }
     await queue.scheduleRecurring(
       "watchdog.sweep",
-      `*/${wd.intervalMin} * * * *`,
+      `*/${intervalMin} * * * *`,
       {},
       { singletonKey: "watchdog.sweep.singleton" },
     );
     await queue.send("watchdog.sweep", {}, { singletonKey: "watchdog.sweep.singleton" });
-    logger.info({ intervalMin: wd.intervalMin }, "[watchdog] sweep cron registered");
+    logger.info({ intervalMin }, "[watchdog] sweep cron registered");
   }
   // ────────────────────────────────────────────────────────────────────────────
 
