@@ -1,10 +1,7 @@
 import { Agent } from "@agent-mouth/agent";
-import { handleEmailFetch } from "./email-fetch.js";
-import { handleEmailPollFallback } from "./email-poll-fallback.js";
-import { handleEmailWatchRenew } from "./email-watch-renew.js";
 import { NotesUpdater } from "@agent-mouth/agent-notes-updater";
-import { bootstrapTools, resolveToolsForPolicy } from "@agent-mouth/agent-tools";
 import { resolveRuntime } from "@agent-mouth/agent-runtime";
+import { bootstrapTools, resolveToolsForPolicy } from "@agent-mouth/agent-tools";
 import type { KnowledgeSource, Policy, Tool, Transport } from "@agent-mouth/core";
 import type {
   ContactStore,
@@ -28,14 +25,17 @@ import {
 import { resolveVectorStore } from "@agent-mouth/vector-store";
 import { resolveWebSearchProvider } from "@agent-mouth/web-search";
 import { Client as PgClient } from "pg";
+import { handleEmailFetch } from "./email-fetch.js";
+import { handleEmailPollFallback } from "./email-poll-fallback.js";
+import { handleEmailWatchRenew } from "./email-watch-renew.js";
 import { logger } from "./logger.js";
+import { checkDailySpend } from "./watchdog/checks/daily-spend.js";
+import { checkDatabase } from "./watchdog/checks/database.js";
 import { checkEmailInbound } from "./watchdog/checks/email-inbound.js";
 import { checkTelegramWebhook } from "./watchdog/checks/telegram-webhook.js";
 import { checkWhatsAppInbound } from "./watchdog/checks/whatsapp-inbound.js";
-import { checkDatabase } from "./watchdog/checks/database.js";
-import { checkDailySpend } from "./watchdog/checks/daily-spend.js";
-import { reportSweep } from "./watchdog/reporter.js";
 import { sendHeartbeat } from "./watchdog/heartbeat.js";
+import { reportSweep } from "./watchdog/reporter.js";
 import { runWatchdogSweep } from "./watchdog/run.js";
 import { PgWatchdogStateStore } from "./watchdog/state.js";
 
@@ -95,7 +95,12 @@ export interface WorkerDeps {
     publicBaseUrl: string;
     authToken: string;
     botToken: string;
-    whatsapp: { enabled: boolean; graphVersion: string; phoneNumberId: string; accessToken: string };
+    whatsapp: {
+      enabled: boolean;
+      graphVersion: string;
+      phoneNumberId: string;
+      accessToken: string;
+    };
   };
 }
 
@@ -340,12 +345,18 @@ export async function startWorker(
     const reauthUrl = `${wd.publicBaseUrl}/email-oauth-start?token=${wd.authToken}`;
     const expectedWebhook = `${wd.publicBaseUrl}/telegram-webhook`;
     const stateStore = new PgWatchdogStateStore(deps.databaseUrl);
-    const auditStore = new SupabaseAuditLogStore({ url: deps.supabaseUrl, anonKey: deps.supabaseAnonKey });
+    const auditStore = new SupabaseAuditLogStore({
+      url: deps.supabaseUrl,
+      anonKey: deps.supabaseAnonKey,
+    });
     const tokenStore = deps.emailFetchDeps?.tokenStore;
     const now = () => new Date();
 
     await queue.work("watchdog.sweep", async () => {
-      const checks: { id: string; run: () => Promise<import("./watchdog/types.js").CheckResult> }[] = [
+      const checks: {
+        id: string;
+        run: () => Promise<import("./watchdog/types.js").CheckResult>;
+      }[] = [
         {
           id: "telegram-webhook",
           run: () => checkTelegramWebhook({ botToken: wd.botToken, expectedUrl: expectedWebhook }),
@@ -363,7 +374,13 @@ export async function startWorker(
         { id: "database", run: () => checkDatabase({ databaseUrl: deps.databaseUrl }) },
         {
           id: "daily-spend",
-          run: () => checkDailySpend({ workspaceId, audit: auditStore, workspaces: deps.workspaceStore, now }),
+          run: () =>
+            checkDailySpend({
+              workspaceId,
+              audit: auditStore,
+              workspaces: deps.workspaceStore,
+              now,
+            }),
         },
       ];
       if (tokenStore) {
@@ -381,7 +398,8 @@ export async function startWorker(
       }
       await runWatchdogSweep({
         checks,
-        report: (results) => reportSweep(results, { stateStore, transport: deps.transport, alertChatId, now }),
+        report: (results) =>
+          reportSweep(results, { stateStore, transport: deps.transport, alertChatId, now }),
         heartbeat: () => sendHeartbeat({ url: wd.healthchecksUrl }),
       });
     });

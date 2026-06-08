@@ -381,7 +381,9 @@ export async function serveHttp(): Promise<void> {
         // Watchdog (v1) — inerte hasta ENABLE_WATCHDOG=true
         enableWatchdog: process.env.ENABLE_WATCHDOG === "true",
         watchdog: {
-          intervalMin: process.env.WATCHDOG_INTERVAL_MIN ? Number(process.env.WATCHDOG_INTERVAL_MIN) : 60,
+          intervalMin: process.env.WATCHDOG_INTERVAL_MIN
+            ? Number(process.env.WATCHDOG_INTERVAL_MIN)
+            : 60,
           emailExpiryMarginHours: process.env.WATCHDOG_EMAIL_EXPIRY_MARGIN_HOURS
             ? Number(process.env.WATCHDOG_EMAIL_EXPIRY_MARGIN_HOURS)
             : 24,
