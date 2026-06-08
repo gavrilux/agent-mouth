@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import type { Tool, Policy } from "@agent-mouth/core";
+import type { Policy, Tool } from "@agent-mouth/core";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
-  registerTool,
-  listTools,
-  getTool,
-  resolveToolsForPolicy,
   _resetToolRegistry,
+  getTool,
+  listTools,
+  registerTool,
+  resolveToolsForPolicy,
 } from "../src/registry.js";
 
 function makeTool(name: string, requiresExplicitGrant = false): Tool {
@@ -45,7 +45,11 @@ describe("tool registry", () => {
   it("registers and lists tools", () => {
     registerTool(makeTool("alpha"));
     registerTool(makeTool("beta"));
-    expect(listTools().map((t) => t.name).sort()).toEqual(["alpha", "beta"]);
+    expect(
+      listTools()
+        .map((t) => t.name)
+        .sort(),
+    ).toEqual(["alpha", "beta"]);
   });
 
   it("getTool returns by name", () => {

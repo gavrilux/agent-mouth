@@ -22,7 +22,11 @@ export async function checkDailySpend(deps: DailySpendCheckDeps): Promise<CheckR
   const ratio = deps.warnRatio ?? 0.85;
   if (spent >= ratio * cap) {
     const pct = Math.round((spent / cap) * 100);
-    return { id: ID, status: "warn", message: `gasto del día al ${pct}% del cap ($${spent.toFixed(2)} de $${cap.toFixed(2)})` };
+    return {
+      id: ID,
+      status: "warn",
+      message: `gasto del día al ${pct}% del cap ($${spent.toFixed(2)} de $${cap.toFixed(2)})`,
+    };
   }
   return { id: ID, status: "ok", message: `$${spent.toFixed(2)} de $${cap.toFixed(2)}` };
 }

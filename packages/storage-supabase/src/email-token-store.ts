@@ -36,14 +36,21 @@ export class SupabaseEmailTokenStore {
     return rows.length ? EmailTokenSchema.parse(rows[0]) : null;
   }
 
-  async upsert(row: Omit<EmailToken, "id" | "created_at" | "updated_at"> & { id?: string }): Promise<EmailToken> {
+  async upsert(
+    row: Omit<EmailToken, "id" | "created_at" | "updated_at"> & { id?: string },
+  ): Promise<EmailToken> {
     const url = `${this.opts.url}/rest/v1/email_oauth_tokens?on_conflict=workspace_id,email_address`;
     const res = await fetch(url, {
       method: "POST",
       headers: this.headers({ Prefer: "return=representation,resolution=merge-duplicates" }),
-      body: JSON.stringify({ ...row, email_address: row.email_address.toLowerCase(), updated_at: new Date().toISOString() }),
+      body: JSON.stringify({
+        ...row,
+        email_address: row.email_address.toLowerCase(),
+        updated_at: new Date().toISOString(),
+      }),
     });
-    if (!res.ok) throw new Error(`email_oauth_tokens upsert failed: ${res.status} ${await res.text()}`);
+    if (!res.ok)
+      throw new Error(`email_oauth_tokens upsert failed: ${res.status} ${await res.text()}`);
     const rows = (await res.json()) as unknown[];
     return EmailTokenSchema.parse(rows[0]);
   }
@@ -97,7 +104,10 @@ export class SupabaseEmailTokenStore {
     const upd = await fetch(`${this.opts.url}/rest/v1/email_oauth_tokens?id=eq.${id}`, {
       method: "PATCH",
       headers: this.headers(),
-      body: JSON.stringify({ consecutive_renewal_failures: next, updated_at: new Date().toISOString() }),
+      body: JSON.stringify({
+        consecutive_renewal_failures: next,
+        updated_at: new Date().toISOString(),
+      }),
     });
     if (!upd.ok) throw new Error(`renewalFailures inc failed: ${upd.status}`);
     return next;

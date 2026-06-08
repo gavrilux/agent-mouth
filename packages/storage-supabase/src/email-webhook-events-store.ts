@@ -27,7 +27,7 @@ export class SupabaseEmailWebhookEventsStore {
       body: JSON.stringify({ email_address: emailAddress.toLowerCase(), history_id: historyId }),
     });
     if (res.status === 201) return true;
-    if (res.status === 409) return false;        // UNIQUE violation → duplicate
+    if (res.status === 409) return false; // UNIQUE violation → duplicate
     throw new Error(`email_webhook_events insert failed: ${res.status} ${await res.text()}`);
   }
 }

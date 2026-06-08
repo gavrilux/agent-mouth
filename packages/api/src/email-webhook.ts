@@ -1,7 +1,7 @@
 // packages/api/src/email-webhook.ts
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { parsePubSubEnvelope, verifyGooglePushJwt } from "@agent-mouth/transport-email";
 import type { SupabaseEmailWebhookEventsStore } from "@agent-mouth/storage-supabase";
+import { parsePubSubEnvelope, type verifyGooglePushJwt } from "@agent-mouth/transport-email";
 import { logger } from "./logger.js";
 
 export interface EmailWebhookConfig {
@@ -26,8 +26,11 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
     req.on("data", (c: Buffer) => chunks.push(c));
     req.on("end", () => {
       const raw = Buffer.concat(chunks).toString("utf8");
-      try { resolve(raw ? JSON.parse(raw) : {}); }
-      catch { resolve(undefined); }
+      try {
+        resolve(raw ? JSON.parse(raw) : {});
+      } catch {
+        resolve(undefined);
+      }
     });
     req.on("error", reject);
   });
@@ -83,7 +86,10 @@ export async function handleEmailWebhook(
   }
 
   if (!isNew) {
-    logger.info({ email: parsed.email_address, historyId: parsed.history_id }, "email-webhook duplicate, noop");
+    logger.info(
+      { email: parsed.email_address, historyId: parsed.history_id },
+      "email-webhook duplicate, noop",
+    );
     send(res, 200, { ok: true, duplicate: true });
     return;
   }
@@ -95,7 +101,10 @@ export async function handleEmailWebhook(
       { email_address: parsed.email_address, history_id: parsed.history_id },
       { singletonKey: `email.fetch.${parsed.email_address}.${parsed.history_id}` },
     );
-    logger.info({ email: parsed.email_address, historyId: parsed.history_id }, "email-webhook job enqueued");
+    logger.info(
+      { email: parsed.email_address, historyId: parsed.history_id },
+      "email-webhook job enqueued",
+    );
   } catch (err) {
     logger.error({ err: String(err) }, "email-webhook enqueue failed");
     // Still return 200 — webhook delivered, job retry will catch up via fallback polling.

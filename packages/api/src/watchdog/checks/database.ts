@@ -12,7 +12,10 @@ export interface DatabaseCheckDeps {
   databaseUrl: string;
   timeoutMs?: number;
   /** Inyectable para tests; por defecto crea un Client real de `pg`. */
-  clientFactory?: (cfg: { connectionString: string; connectionTimeoutMillis: number }) => MinimalPgClient;
+  clientFactory?: (cfg: {
+    connectionString: string;
+    connectionTimeoutMillis: number;
+  }) => MinimalPgClient;
 }
 
 const ID = "database";
@@ -26,7 +29,12 @@ export async function checkDatabase(deps: DatabaseCheckDeps): Promise<CheckResul
     await client.query("SELECT 1");
     return { id: ID, status: "ok", message: "ok" };
   } catch (err) {
-    return { id: ID, status: "down", message: `DB no responde: ${String(err)}`, action: "Revisa Supabase / DATABASE_URL." };
+    return {
+      id: ID,
+      status: "down",
+      message: `DB no responde: ${String(err)}`,
+      action: "Revisa Supabase / DATABASE_URL.",
+    };
   } finally {
     await client.end().catch(() => {});
   }

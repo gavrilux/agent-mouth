@@ -1,7 +1,5 @@
-import type {
-  AuditLogStore, ContactStore, MessageStore, ThreadStore,
-} from "@agent-mouth/core";
-import type { AgentRuntime, AgentContext } from "@agent-mouth/agent-runtime";
+import type { AgentContext, AgentRuntime } from "@agent-mouth/agent-runtime";
+import type { AuditLogStore, ContactStore, MessageStore, ThreadStore } from "@agent-mouth/core";
 
 export interface NotesUpdaterDeps {
   runtime: AgentRuntime;
@@ -84,12 +82,20 @@ export class NotesUpdater {
       },
       threadHistory: [],
       policy: {
-        id: "notes", workspace_id: input.workspaceId, contact_id: input.contactId,
-        channel_type: "telegram", policy: "auto",
-        system_prompt: NOTES_PROMPT_SYSTEM, model_id: null,
-        rate_limit_per_hour: 1000, max_tokens_out: 2000, max_tool_calls: 0,
-        forbidden_topics_regex: [], escalate_triggers_regex: [],
-        rules: {}, priority: 0,
+        id: "notes",
+        workspace_id: input.workspaceId,
+        contact_id: input.contactId,
+        channel_type: "telegram",
+        policy: "auto",
+        system_prompt: NOTES_PROMPT_SYSTEM,
+        model_id: null,
+        rate_limit_per_hour: 1000,
+        max_tokens_out: 2000,
+        max_tool_calls: 0,
+        forbidden_topics_regex: [],
+        escalate_triggers_regex: [],
+        rules: {},
+        priority: 0,
         created_at: new Date().toISOString(),
       } as never,
       availableTools: [],

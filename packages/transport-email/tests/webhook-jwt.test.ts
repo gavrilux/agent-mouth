@@ -1,9 +1,12 @@
-import { generateKeyPair, exportJWK, SignJWT } from "jose";
+import { SignJWT, exportJWK, generateKeyPair } from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { verifyGooglePushJwt, _resetJwksCache } from "../src/webhook/jwt.js";
+import { _resetJwksCache, verifyGooglePushJwt } from "../src/webhook/jwt.js";
 
 // We generate a local keypair to sign test JWTs, then mock Google JWKS to return our public key.
-async function makeSignedJwt(payload: Record<string, unknown>, opts: { iss: string; aud: string; expSec?: number }) {
+async function makeSignedJwt(
+  payload: Record<string, unknown>,
+  opts: { iss: string; aud: string; expSec?: number },
+) {
   const { publicKey, privateKey } = await generateKeyPair("RS256");
   const pubJwk = await exportJWK(publicKey);
   pubJwk.kid = "test-key-1";
@@ -20,8 +23,12 @@ async function makeSignedJwt(payload: Record<string, unknown>, opts: { iss: stri
 }
 
 const origFetch = globalThis.fetch;
-beforeEach(() => { _resetJwksCache(); });
-afterEach(() => { globalThis.fetch = origFetch; });
+beforeEach(() => {
+  _resetJwksCache();
+});
+afterEach(() => {
+  globalThis.fetch = origFetch;
+});
 
 describe("verifyGooglePushJwt", () => {
   it("accepts a valid JWT with correct iss + aud", async () => {
@@ -29,7 +36,9 @@ describe("verifyGooglePushJwt", () => {
       { email: "service@p.iam.gserviceaccount.com" },
       { iss: "https://accounts.google.com", aud: "https://agent-mouth.fly.dev/email-webhook" },
     );
-    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ keys: [pubJwk] }), { status: 200 })) as never;
+    globalThis.fetch = vi.fn(
+      async () => new Response(JSON.stringify({ keys: [pubJwk] }), { status: 200 }),
+    ) as never;
 
     const payload = await verifyGooglePushJwt(jwt, {
       audience: "https://agent-mouth.fly.dev/email-webhook",
@@ -43,7 +52,9 @@ describe("verifyGooglePushJwt", () => {
       { email: "service@p.iam.gserviceaccount.com" },
       { iss: "https://evil.com", aud: "https://agent-mouth.fly.dev/email-webhook" },
     );
-    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ keys: [pubJwk] }), { status: 200 })) as never;
+    globalThis.fetch = vi.fn(
+      async () => new Response(JSON.stringify({ keys: [pubJwk] }), { status: 200 }),
+    ) as never;
 
     await expect(
       verifyGooglePushJwt(jwt, {
@@ -58,7 +69,9 @@ describe("verifyGooglePushJwt", () => {
       { email: "service@p.iam.gserviceaccount.com" },
       { iss: "https://accounts.google.com", aud: "https://other.example.com" },
     );
-    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ keys: [pubJwk] }), { status: 200 })) as never;
+    globalThis.fetch = vi.fn(
+      async () => new Response(JSON.stringify({ keys: [pubJwk] }), { status: 200 }),
+    ) as never;
 
     await expect(
       verifyGooglePushJwt(jwt, {
@@ -73,7 +86,9 @@ describe("verifyGooglePushJwt", () => {
       { email: "attacker@p.iam.gserviceaccount.com" },
       { iss: "https://accounts.google.com", aud: "https://agent-mouth.fly.dev/email-webhook" },
     );
-    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ keys: [pubJwk] }), { status: 200 })) as never;
+    globalThis.fetch = vi.fn(
+      async () => new Response(JSON.stringify({ keys: [pubJwk] }), { status: 200 }),
+    ) as never;
 
     await expect(
       verifyGooglePushJwt(jwt, {
@@ -86,9 +101,15 @@ describe("verifyGooglePushJwt", () => {
   it("rejects expired JWT", async () => {
     const { jwt, pubJwk } = await makeSignedJwt(
       { email: "service@p.iam.gserviceaccount.com" },
-      { iss: "https://accounts.google.com", aud: "https://agent-mouth.fly.dev/email-webhook", expSec: -10 },
+      {
+        iss: "https://accounts.google.com",
+        aud: "https://agent-mouth.fly.dev/email-webhook",
+        expSec: -10,
+      },
     );
-    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ keys: [pubJwk] }), { status: 200 })) as never;
+    globalThis.fetch = vi.fn(
+      async () => new Response(JSON.stringify({ keys: [pubJwk] }), { status: 200 }),
+    ) as never;
 
     await expect(
       verifyGooglePushJwt(jwt, {

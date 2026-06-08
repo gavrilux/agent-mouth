@@ -18,7 +18,9 @@ describe("sendHeartbeat", () => {
   });
 
   it("devuelve false (sin lanzar) si el fetch falla", async () => {
-    const fetchFn = vi.fn(async () => { throw new Error("network"); }) as never;
+    const fetchFn = vi.fn(async () => {
+      throw new Error("network");
+    }) as never;
     const ok = await sendHeartbeat({ url: "https://hc.example/ping/abc", fetchFn });
     expect(ok).toBe(false);
   });

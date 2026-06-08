@@ -7,10 +7,7 @@ export interface EmbeddingProviderRegistration {
 
 const registry = new Map<string, EmbeddingProviderRegistration>();
 
-export function registerEmbeddingProvider(
-  name: string,
-  reg: EmbeddingProviderRegistration,
-): void {
+export function registerEmbeddingProvider(name: string, reg: EmbeddingProviderRegistration): void {
   registry.set(name, reg);
 }
 
@@ -30,9 +27,7 @@ export async function resolveEmbeddingProvider(
   }
   const apiKey = env[reg.apiKeyEnv];
   if (!apiKey) {
-    throw new Error(
-      `Embedding provider "${name}" requires ${reg.apiKeyEnv} but it is not set`,
-    );
+    throw new Error(`Embedding provider "${name}" requires ${reg.apiKeyEnv} but it is not set`);
   }
   const provider = reg.factory();
   await provider.init(env);

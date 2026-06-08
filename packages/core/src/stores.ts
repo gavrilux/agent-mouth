@@ -1,5 +1,5 @@
 // packages/core/src/stores.ts
-import type { Workspace, Contact, ChannelIdentity, Channel, Policy, Thread } from "./identity.js";
+import type { Channel, ChannelIdentity, Contact, Policy, Thread, Workspace } from "./identity.js";
 
 export interface WorkspaceStore {
   getDefault(): Promise<Workspace>;
@@ -122,7 +122,9 @@ export interface AuditEntry {
 
 export interface DraftStore {
   /** Inserts a draft with status='pending'. Approval workflow handled outside this interface. */
-  insert(input: Omit<Draft, "id" | "created_at" | "status" | "approved_by" | "approved_at">): Promise<Draft>;
+  insert(
+    input: Omit<Draft, "id" | "created_at" | "status" | "approved_by" | "approved_at">,
+  ): Promise<Draft>;
   findPendingByMessageId(messageId: string): Promise<Draft | null>;
 }
 

@@ -13,8 +13,5 @@ export interface WebSearchResult {
 export interface WebSearchProvider {
   readonly name: string;
   init(env: Record<string, string | undefined>): Promise<void>;
-  search(
-    query: string,
-    opts: { maxResults: number },
-  ): Promise<WebSearchResult>;
+  search(query: string, opts: { maxResults: number }): Promise<WebSearchResult>;
 }

@@ -1,11 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { checkRateLimit } from "../src/rate-limit.js";
 
 const auditStub = (count: number) => ({
   sumCostUsdSince: async () => 0,
   countSentOrDraftSince: async () => count,
   findRespondedFor: async () => null,
-  write: async () => ({} as any),
+  write: async () => ({}) as any,
 });
 
 describe("checkRateLimit", () => {

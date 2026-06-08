@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  EmailTokenSchema,
-  NormalizedEmailSchema,
-} from "../src/email.js";
+import { EmailTokenSchema, NormalizedEmailSchema } from "../src/email.js";
 import { ContactSchema } from "../src/identity.js";
 
 describe("EmailTokenSchema", () => {

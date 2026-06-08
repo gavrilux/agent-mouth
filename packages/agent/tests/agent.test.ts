@@ -1,11 +1,15 @@
-import { describe, it, expect } from "vitest";
-import { Agent } from "../src/agent.js";
 import { MockRuntime } from "@agent-mouth/agent-runtime";
+import { describe, expect, it } from "vitest";
+import { Agent } from "../src/agent.js";
 
 const contactStore = {
   findById: async (_w: string, id: string) =>
-    id === "c1" ? { id: "c1", workspace_id: "w1", display_name: "G", notes: "test notes", created_at: "" } : null,
-  upsertByDisplayName: async () => { throw new Error("not used"); },
+    id === "c1"
+      ? { id: "c1", workspace_id: "w1", display_name: "G", notes: "test notes", created_at: "" }
+      : null,
+  upsertByDisplayName: async () => {
+    throw new Error("not used");
+  },
   updateNotes: async () => {},
 };
 const messages = { lastN: async () => [], insert: async () => ({}) as any };
@@ -13,18 +17,28 @@ const audit = {
   sumCostUsdSince: async () => 0,
   countSentOrDraftSince: async () => 0,
   findRespondedFor: async () => null,
-  write: async () => ({} as any),
+  write: async () => ({}) as any,
 };
 const workspaces = {
-  getDefault: async () => ({ id: "w1", daily_budget_usd_cap: 5, name: "T", plan: "self-host", created_at: "" } as any),
+  getDefault: async () =>
+    ({ id: "w1", daily_budget_usd_cap: 5, name: "T", plan: "self-host", created_at: "" }) as any,
 };
 
 const policy = {
-  id: "p1", workspace_id: "w1", contact_id: "c1", channel_type: "telegram",
-  policy: "auto", system_prompt: "Sé conciso.", model_id: null,
-  rate_limit_per_hour: 10, max_tokens_out: 500, max_tool_calls: 0,
-  forbidden_topics_regex: [], escalate_triggers_regex: [],
-  rules: {}, priority: 0,
+  id: "p1",
+  workspace_id: "w1",
+  contact_id: "c1",
+  channel_type: "telegram",
+  policy: "auto",
+  system_prompt: "Sé conciso.",
+  model_id: null,
+  rate_limit_per_hour: 10,
+  max_tokens_out: 500,
+  max_tool_calls: 0,
+  forbidden_topics_regex: [],
+  escalate_triggers_regex: [],
+  rules: {},
+  priority: 0,
 } as any;
 
 describe("Agent facade", () => {

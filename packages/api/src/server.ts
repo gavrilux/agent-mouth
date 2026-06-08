@@ -1,6 +1,6 @@
+import type { MessageStore, OffsetStore, Transport } from "@agent-mouth/core";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import type { MessageStore, OffsetStore, Transport } from "@agent-mouth/core";
 import { logger } from "./logger.js";
 import { type ToolChannelRef, type ToolThreadRef, tools } from "./registry.js";
 import "./tools/_register.js";

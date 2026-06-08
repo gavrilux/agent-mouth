@@ -1,7 +1,10 @@
 import type { MessageStore, PersistedMessage, PersistedMessageInput } from "@agent-mouth/core";
 
 export class SupabaseMessageStore implements MessageStore {
-  constructor(private readonly url: string, private readonly key: string) {}
+  constructor(
+    private readonly url: string,
+    private readonly key: string,
+  ) {}
 
   protected pollIntervalMs = 2000;
 
@@ -51,17 +54,14 @@ export class SupabaseMessageStore implements MessageStore {
     if (!contentRange) return 0;
     // content-range: 0-N/TOTAL  or  */TOTAL
     const match = contentRange.match(/\/(\d+)$/);
-    return match ? parseInt(match[1]!, 10) : 0;
+    return match ? Number.parseInt(match[1]!, 10) : 0;
   }
 
   async lastN(threadId: string, n: number): Promise<PersistedMessage[]> {
-    const params = [
-      "select=*",
-      `thread_id=eq.${threadId}`,
-      "order=created_at.desc",
-      `limit=${n}`,
-    ];
-    const res = await fetch(`${this.url}/rest/v1/messages?${params.join("&")}`, { headers: this.headers() });
+    const params = ["select=*", `thread_id=eq.${threadId}`, "order=created_at.desc", `limit=${n}`];
+    const res = await fetch(`${this.url}/rest/v1/messages?${params.join("&")}`, {
+      headers: this.headers(),
+    });
     if (!res.ok) throw new Error(`message lastN failed: ${res.status}`);
     const rows = (await res.json()) as PersistedMessage[];
     return rows.reverse();
@@ -78,7 +78,9 @@ export class SupabaseMessageStore implements MessageStore {
     if (args.sinceId) params.push(`id=gt.${args.sinceId}`);
     params.push("order=created_at.desc");
     params.push(`limit=${args.limit}`);
-    const res = await fetch(`${this.url}/rest/v1/messages?${params.join("&")}`, { headers: this.headers() });
+    const res = await fetch(`${this.url}/rest/v1/messages?${params.join("&")}`, {
+      headers: this.headers(),
+    });
     if (!res.ok) throw new Error(`message list failed: ${res.status}`);
     return (await res.json()) as PersistedMessage[];
   }
@@ -96,7 +98,9 @@ export class SupabaseMessageStore implements MessageStore {
         "order=created_at.asc",
         "limit=50",
       ];
-      const res = await fetch(`${this.url}/rest/v1/messages?${params.join("&")}`, { headers: this.headers() });
+      const res = await fetch(`${this.url}/rest/v1/messages?${params.join("&")}`, {
+        headers: this.headers(),
+      });
       if (!res.ok) throw new Error(`message poll failed: ${res.status}`);
       const rows = (await res.json()) as PersistedMessage[];
       if (rows.length > 0) return rows;

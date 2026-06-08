@@ -16,7 +16,9 @@ export async function resolveVectorStore(args: {
 }): Promise<VectorStore> {
   const factory = factories.get(args.type);
   if (!factory) {
-    throw new Error(`No vector store for type "${args.type}". Known: ${listVectorStoreTypes().join(", ") || "(none)"}`);
+    throw new Error(
+      `No vector store for type "${args.type}". Known: ${listVectorStoreTypes().join(", ") || "(none)"}`,
+    );
   }
   const store = factory();
   await store.init(args.env);

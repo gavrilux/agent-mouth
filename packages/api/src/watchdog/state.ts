@@ -6,7 +6,10 @@ export class PgWatchdogStateStore implements WatchdogStateStore {
   constructor(private readonly connectionString: string) {}
 
   async load(): Promise<WatchdogStateRow[]> {
-    const pg = new PgClient({ connectionString: this.connectionString, connectionTimeoutMillis: 10_000 });
+    const pg = new PgClient({
+      connectionString: this.connectionString,
+      connectionTimeoutMillis: 10_000,
+    });
     try {
       await pg.connect();
       const res = await pg.query(
@@ -16,7 +19,9 @@ export class PgWatchdogStateStore implements WatchdogStateStore {
         check_id: String(r.check_id),
         status: r.status as WatchdogStateRow["status"],
         first_seen_at: r.first_seen_at ? new Date(r.first_seen_at as string).toISOString() : null,
-        last_alerted_at: r.last_alerted_at ? new Date(r.last_alerted_at as string).toISOString() : null,
+        last_alerted_at: r.last_alerted_at
+          ? new Date(r.last_alerted_at as string).toISOString()
+          : null,
       }));
     } finally {
       await pg.end().catch(() => {});
@@ -24,7 +29,10 @@ export class PgWatchdogStateStore implements WatchdogStateStore {
   }
 
   async upsert(row: WatchdogStateRow): Promise<void> {
-    const pg = new PgClient({ connectionString: this.connectionString, connectionTimeoutMillis: 10_000 });
+    const pg = new PgClient({
+      connectionString: this.connectionString,
+      connectionTimeoutMillis: 10_000,
+    });
     try {
       await pg.connect();
       await pg.query(

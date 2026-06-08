@@ -13,7 +13,10 @@ export interface ReporterDeps {
 }
 
 /** Aplica anti-spam, compone el mensaje y lo envía. Devuelve el body enviado o null. */
-export async function reportSweep(results: CheckResult[], deps: ReporterDeps): Promise<string | null> {
+export async function reportSweep(
+  results: CheckResult[],
+  deps: ReporterDeps,
+): Promise<string | null> {
   const prev = new Map<string, WatchdogStateRow>();
   for (const row of await deps.stateStore.load()) prev.set(row.check_id, row);
 
@@ -28,18 +31,35 @@ export async function reportSweep(results: CheckResult[], deps: ReporterDeps): P
 
     if (r.status !== "ok") {
       const firstSeen = wasBad && before?.first_seen_at ? before.first_seen_at : nowIso;
-      const lastAlertedMs = before?.last_alerted_at ? new Date(before.last_alerted_at).getTime() : 0;
+      const lastAlertedMs = before?.last_alerted_at
+        ? new Date(before.last_alerted_at).getTime()
+        : 0;
       const isTransition = !wasBad || before?.status !== r.status;
       const dueReminder = wasBad && nowMs - lastAlertedMs >= REMINDER_MS;
       if (isTransition || dueReminder) {
         lines.push(`${EMOJI[r.status]} ${r.message}${r.action ? ` → ${r.action}` : ""}`);
-        await deps.stateStore.upsert({ check_id: r.id, status: r.status, first_seen_at: firstSeen, last_alerted_at: nowIso });
+        await deps.stateStore.upsert({
+          check_id: r.id,
+          status: r.status,
+          first_seen_at: firstSeen,
+          last_alerted_at: nowIso,
+        });
       } else {
-        await deps.stateStore.upsert({ check_id: r.id, status: r.status, first_seen_at: firstSeen, last_alerted_at: before?.last_alerted_at ?? nowIso });
+        await deps.stateStore.upsert({
+          check_id: r.id,
+          status: r.status,
+          first_seen_at: firstSeen,
+          last_alerted_at: before?.last_alerted_at ?? nowIso,
+        });
       }
     } else {
       if (wasBad) lines.push(`${EMOJI.ok} Recuperado: ${r.id}`);
-      await deps.stateStore.upsert({ check_id: r.id, status: "ok", first_seen_at: null, last_alerted_at: null });
+      await deps.stateStore.upsert({
+        check_id: r.id,
+        status: "ok",
+        first_seen_at: null,
+        last_alerted_at: null,
+      });
     }
   }
 

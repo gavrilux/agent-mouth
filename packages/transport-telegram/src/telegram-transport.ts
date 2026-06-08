@@ -1,6 +1,4 @@
-import { Bot } from "grammy";
 import type {
-  TransportContact,
   Identity,
   OffsetStore,
   ReceiveOptions,
@@ -9,8 +7,10 @@ import type {
   SentMessage,
   Transport,
   TransportConfig,
+  TransportContact,
   WaitOptions,
 } from "@agent-mouth/core";
+import { Bot } from "grammy";
 
 export interface TelegramConfig extends TransportConfig {
   bot_token: string;
@@ -79,9 +79,10 @@ export class TelegramTransport implements Transport {
     // Otherwise treat it as a username/handle and mention it in the configured chat (Phase 0 group behavior).
     const isNumericChatId = !!opts.to && /^-?\d+$/.test(opts.to);
     const targetChat = isNumericChatId ? opts.to! : this.chatId;
-    const text = !isNumericChatId && opts.to && opts.to !== "broadcast"
-      ? `@${opts.to} ${opts.body}`
-      : opts.body;
+    const text =
+      !isNumericChatId && opts.to && opts.to !== "broadcast"
+        ? `@${opts.to} ${opts.body}`
+        : opts.body;
     const sent = await this.bot.api.sendMessage(targetChat, text, {
       reply_parameters: opts.reply_to_message_id
         ? { message_id: Number(opts.reply_to_message_id) }

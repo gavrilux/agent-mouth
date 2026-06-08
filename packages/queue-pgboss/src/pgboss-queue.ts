@@ -1,5 +1,5 @@
-import PgBoss from "pg-boss";
 import type { JobQueue } from "@agent-mouth/core";
+import PgBoss from "pg-boss";
 
 export interface PgBossQueueOptions {
   connectionString: string;
@@ -24,7 +24,11 @@ export class PgBossQueue implements JobQueue {
     await this.boss.stop({ graceful: true, timeout: 5000 });
   }
 
-  async send<T>(name: string, data: T, options?: { singletonKey?: string }): Promise<string | null> {
+  async send<T>(
+    name: string,
+    data: T,
+    options?: { singletonKey?: string },
+  ): Promise<string | null> {
     await this.boss.createQueue(name);
     return await this.boss.send(name, data as object, {
       singletonKey: options?.singletonKey,

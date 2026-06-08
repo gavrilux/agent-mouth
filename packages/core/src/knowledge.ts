@@ -18,10 +18,7 @@ export interface KnowledgeSourceConfig {
 
 export interface KnowledgeSource {
   readonly type: string;
-  init(
-    config: KnowledgeSourceConfig,
-    env: Record<string, string | undefined>,
-  ): Promise<void>;
+  init(config: KnowledgeSourceConfig, env: Record<string, string | undefined>): Promise<void>;
   sync(): Promise<SyncResult>;
   listFiles(): Promise<KnowledgeFile[]>;
   readFile(path: string): Promise<{ content: string; lastModified: Date }>;

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { SupabaseAuditLogStore } from "../src/audit-log-store.js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;

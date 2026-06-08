@@ -178,7 +178,7 @@ export async function startWorker(
       try {
         await pg.connect();
         const { rows } = await pg.query(
-          `SELECT id, type, config FROM knowledge_sources WHERE workspace_id = $1 LIMIT 1`,
+          "SELECT id, type, config FROM knowledge_sources WHERE workspace_id = $1 LIMIT 1",
           [deps.defaultWorkspaceId],
         );
         if (rows.length > 0) {
@@ -467,7 +467,7 @@ export async function handleRespondJob(
       const inputJson = JSON.stringify(tc.arguments);
       const details: Record<string, unknown> = {
         tool_name: tc.name,
-        input_summary: inputJson.length > 200 ? inputJson.slice(0, 200) + "…" : inputJson,
+        input_summary: inputJson.length > 200 ? `${inputJson.slice(0, 200)}…` : inputJson,
         success: tc.ok ?? false,
       };
       if (tc.id !== undefined) details.tool_id = tc.id;
@@ -580,7 +580,7 @@ export async function runKnowledgeSync(args: RunKnowledgeSyncArgs): Promise<void
   try {
     await pg.connect();
     const { rows } = await pg.query(
-      `SELECT id, type, config FROM knowledge_sources WHERE workspace_id = $1`,
+      "SELECT id, type, config FROM knowledge_sources WHERE workspace_id = $1",
       [args.workspaceId],
     );
     // Embedder + vector store don't depend on the row; resolve once per tick.
@@ -611,7 +611,7 @@ export async function runKnowledgeSync(args: RunKnowledgeSyncArgs): Promise<void
             filesRepo,
           });
           await pg.query(
-            `UPDATE knowledge_sources SET last_synced_at = NOW(), last_sync_status = $1 WHERE id = $2`,
+            "UPDATE knowledge_sources SET last_synced_at = NOW(), last_sync_status = $1 WHERE id = $2",
             ["ok", sourceId],
           );
           logger.info({ sourceId, result }, "[phase-3] knowledge.sync done");
@@ -620,7 +620,7 @@ export async function runKnowledgeSync(args: RunKnowledgeSyncArgs): Promise<void
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        await pg.query(`UPDATE knowledge_sources SET last_sync_status = $1 WHERE id = $2`, [
+        await pg.query("UPDATE knowledge_sources SET last_sync_status = $1 WHERE id = $2", [
           `error: ${msg}`,
           sourceId,
         ]);

@@ -1,4 +1,4 @@
-import type { Tool, ToolContext, VectorStore, EmbeddingProvider } from "@agent-mouth/core";
+import type { EmbeddingProvider, Tool, ToolContext, VectorStore } from "@agent-mouth/core";
 
 const EMBED_COST_PER_QUERY = 0.00002;
 

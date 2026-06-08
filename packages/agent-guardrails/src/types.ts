@@ -1,3 +1,1 @@
-export type GuardrailResult =
-  | { ok: true }
-  | { ok: false; reason: string; escalate?: boolean };
+export type GuardrailResult = { ok: true } | { ok: false; reason: string; escalate?: boolean };

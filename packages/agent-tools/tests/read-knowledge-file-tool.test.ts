@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
 import type { KnowledgeSource } from "@agent-mouth/core";
+import { describe, expect, it } from "vitest";
 import { ReadKnowledgeFileTool } from "../src/read-knowledge-file-tool.js";
 
 function ctx(): any {
@@ -19,7 +19,10 @@ describe("ReadKnowledgeFileTool", () => {
       init: async () => {},
       sync: async () => ({ added: [], modified: [], deleted: [], errors: [] }),
       listFiles: async () => [],
-      readFile: async () => ({ content: "# Title\n\nbody content", lastModified: new Date("2026-05-23T12:00:00Z") }),
+      readFile: async () => ({
+        content: "# Title\n\nbody content",
+        lastModified: new Date("2026-05-23T12:00:00Z"),
+      }),
     };
     const tool = new ReadKnowledgeFileTool({ knowledgeSource: src });
     const res = await tool.execute({ path: "x.md" }, ctx());
@@ -68,7 +71,9 @@ describe("ReadKnowledgeFileTool", () => {
       init: async () => {},
       sync: async () => ({ added: [], modified: [], deleted: [], errors: [] }),
       listFiles: async () => [],
-      readFile: async () => { throw "string-thrown"; },
+      readFile: async () => {
+        throw "string-thrown";
+      },
     };
     const tool = new ReadKnowledgeFileTool({ knowledgeSource: src });
     const res = await tool.execute({ path: "missing.md" }, ctx());

@@ -13,13 +13,21 @@ describe("checkWhatsAppInbound", () => {
   });
 
   it("ok cuando Graph API responde 200", async () => {
-    const fetchFn = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ id: "123" }) })) as never;
+    const fetchFn = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: "123" }),
+    })) as never;
     const r = await checkWhatsAppInbound({ enabled: true, ...base, fetchFn });
     expect(r.status).toBe("ok");
   });
 
   it("down cuando Graph API no es 200", async () => {
-    const fetchFn = vi.fn(async () => ({ ok: false, status: 401, json: async () => ({}) })) as never;
+    const fetchFn = vi.fn(async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({}),
+    })) as never;
     const r = await checkWhatsAppInbound({ enabled: true, ...base, fetchFn });
     expect(r.status).toBe("down");
   });

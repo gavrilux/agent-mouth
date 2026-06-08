@@ -1,5 +1,5 @@
-import { Client as PgClient } from "pg";
 import { SupabaseWorkspaceStore } from "@agent-mouth/storage-supabase";
+import { Client as PgClient } from "pg";
 import { logger } from "../logger.js";
 
 export interface SeedKnowledgeArgs {
@@ -71,7 +71,7 @@ export async function seedKnowledge(argv: string[]): Promise<void> {
 
     if (!opts.force) {
       const { rows: existing } = await pg.query(
-        `SELECT id FROM knowledge_sources WHERE workspace_id = $1 LIMIT 1`,
+        "SELECT id FROM knowledge_sources WHERE workspace_id = $1 LIMIT 1",
         [workspaceId],
       );
       if (existing.length > 0) {
@@ -87,10 +87,7 @@ export async function seedKnowledge(argv: string[]): Promise<void> {
       `INSERT INTO knowledge_sources (workspace_id, type, config) VALUES ($1, 'git', $2::jsonb) RETURNING id`,
       [workspaceId, JSON.stringify(config)],
     );
-    logger.info(
-      { id: rows[0].id, workspaceId, repoUrl: opts.repoUrl },
-      "seeded knowledge source",
-    );
+    logger.info({ id: rows[0].id, workspaceId, repoUrl: opts.repoUrl }, "seeded knowledge source");
   } finally {
     await pg.end().catch(() => {});
   }

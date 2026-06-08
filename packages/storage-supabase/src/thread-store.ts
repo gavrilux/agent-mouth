@@ -2,7 +2,10 @@ import type { Thread, ThreadStore } from "@agent-mouth/core";
 import { ThreadSchema } from "@agent-mouth/core";
 
 export class SupabaseThreadStore implements ThreadStore {
-  constructor(private readonly url: string, private readonly key: string) {}
+  constructor(
+    private readonly url: string,
+    private readonly key: string,
+  ) {}
 
   private headers(extra: Record<string, string> = {}) {
     return {
@@ -47,14 +50,12 @@ export class SupabaseThreadStore implements ThreadStore {
   }
 
   async markNotesUpdated(threadId: string): Promise<void> {
-    const res = await fetch(
-      `${this.url}/rest/v1/threads?id=eq.${encodeURIComponent(threadId)}`,
-      {
-        method: "PATCH",
-        headers: this.headers({ Prefer: "return=minimal" }),
-        body: JSON.stringify({ notes_last_updated_at: new Date().toISOString() }),
-      },
-    );
-    if (!res.ok) throw new Error(`thread markNotesUpdated failed: ${res.status} ${await res.text()}`);
+    const res = await fetch(`${this.url}/rest/v1/threads?id=eq.${encodeURIComponent(threadId)}`, {
+      method: "PATCH",
+      headers: this.headers({ Prefer: "return=minimal" }),
+      body: JSON.stringify({ notes_last_updated_at: new Date().toISOString() }),
+    });
+    if (!res.ok)
+      throw new Error(`thread markNotesUpdated failed: ${res.status} ${await res.text()}`);
   }
 }

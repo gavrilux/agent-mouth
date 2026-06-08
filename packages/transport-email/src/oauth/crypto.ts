@@ -1,8 +1,8 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
 const ALGO = "aes-256-gcm";
-const IV_LEN = 12;       // 96 bits — recommended for GCM
-const TAG_LEN = 16;      // 128 bits
+const IV_LEN = 12; // 96 bits — recommended for GCM
+const TAG_LEN = 16; // 128 bits
 
 function keyToBuffer(hex: string): Buffer {
   if (!/^[0-9a-fA-F]{64}$/.test(hex)) {

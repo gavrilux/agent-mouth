@@ -1,12 +1,12 @@
 // packages/api/src/cli/email-setup.ts
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
+import { SupabaseEmailTokenStore, SupabaseWorkspaceStore } from "@agent-mouth/storage-supabase";
 import {
   GmailDriver,
   buildAuthUrl,
   encryptToken,
   exchangeCodeForTokens,
 } from "@agent-mouth/transport-email";
-import { SupabaseEmailTokenStore, SupabaseWorkspaceStore } from "@agent-mouth/storage-supabase";
 import { logger } from "../logger.js";
 
 const DEFAULT_SCOPES = [
@@ -78,7 +78,7 @@ export async function emailSetup(argv: string[]): Promise<void> {
   console.log("\nWaiting for redirect (Ctrl-C to abort)...\n");
 
   const code = await waitForCode(opts.port);
-  console.log(`Received code, exchanging for tokens...`);
+  console.log("Received code, exchanging for tokens...");
 
   const tokens = await exchangeCodeForTokens({ clientId, clientSecret, redirectUri, code });
   if (!tokens.refresh_token) {
@@ -110,7 +110,10 @@ export async function emailSetup(argv: string[]): Promise<void> {
   const lookupUrl = `${supabaseUrl}/rest/v1/channels?workspace_id=eq.${workspaceId}&type=eq.email&select=id&limit=1`;
   const lookupRes = await fetch(lookupUrl, { headers: restHeaders });
   if (!lookupRes.ok) {
-    logger.error({ status: lookupRes.status, body: await lookupRes.text() }, "channel lookup failed");
+    logger.error(
+      { status: lookupRes.status, body: await lookupRes.text() },
+      "channel lookup failed",
+    );
     process.exit(1);
   }
   const lookupRows = (await lookupRes.json()) as Array<{ id: string }>;
@@ -128,7 +131,10 @@ export async function emailSetup(argv: string[]): Promise<void> {
       }),
     });
     if (!insertRes.ok) {
-      logger.error({ status: insertRes.status, body: await insertRes.text() }, "channel insert failed");
+      logger.error(
+        { status: insertRes.status, body: await insertRes.text() },
+        "channel insert failed",
+      );
       process.exit(1);
     }
     const insertRows = (await insertRes.json()) as Array<{ id: string }>;
@@ -175,14 +181,14 @@ function waitForCode(port: number): Promise<string> {
         return;
       }
       if (!code) {
-        res.writeHead(400, { "Content-Type": "text/html" }).end(`<h1>No code</h1>`);
+        res.writeHead(400, { "Content-Type": "text/html" }).end("<h1>No code</h1>");
         server.close();
         reject(new Error("no code in redirect"));
         return;
       }
-      res.writeHead(200, { "Content-Type": "text/html" }).end(
-        `<h1>Authorization received</h1><p>You can close this tab.</p>`,
-      );
+      res
+        .writeHead(200, { "Content-Type": "text/html" })
+        .end("<h1>Authorization received</h1><p>You can close this tab.</p>");
       server.close();
       resolve(code);
     });

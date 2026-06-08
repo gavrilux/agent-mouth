@@ -18,7 +18,10 @@ export async function handleEmailPollFallback(deps: EmailPollFallbackDeps): Prom
     try {
       await deps.fetchOne(tok.email_address, tok.last_history_id ?? "1");
     } catch (err) {
-      logger.error({ err: String(err), email: tok.email_address }, "email.poll.fallback per-token failure");
+      logger.error(
+        { err: String(err), email: tok.email_address },
+        "email.poll.fallback per-token failure",
+      );
     }
   }
 }

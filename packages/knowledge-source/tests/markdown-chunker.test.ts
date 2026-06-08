@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { MarkdownChunker } from "../src/chunkers/markdown-chunker.js";
 
 describe("MarkdownChunker", () => {
@@ -58,7 +58,7 @@ body
     const md = `# T\n\n## S\n\n${code}`;
     const chunker = new MarkdownChunker({ targetTokens: 400, maxTokens: 500, overlapTokens: 50 });
     const chunks = chunker.split(md, { path: "code.md" });
-    const codeOpens = chunks.flatMap(c => c.text.match(/```/g) ?? []).length;
+    const codeOpens = chunks.flatMap((c) => c.text.match(/```/g) ?? []).length;
     expect(codeOpens % 2).toBe(0);
   });
 
@@ -82,7 +82,7 @@ body
     }
   });
 
-  it("handles \"$\" characters in heading text safely", () => {
+  it('handles "$" characters in heading text safely', () => {
     // `$&` is JS's replace-pattern token for "whole match"; if unescaped, an
     // unsafe `replace(re, "$&xyz")` would echo the matched heading back.
     // Heading `## Score ($&corrupt)` would, with the bug present, expand to
@@ -90,7 +90,7 @@ body
     const md = `# Title\n\n## Score ($&corrupt)\n\nBody text.\n`;
     const chunker = new MarkdownChunker({ targetTokens: 400, maxTokens: 500, overlapTokens: 50 });
     const chunks = chunker.split(md, { path: "x.md" });
-    const scoreChunk = chunks.find(c => c.text.includes("Score"));
+    const scoreChunk = chunks.find((c) => c.text.includes("Score"));
     expect(scoreChunk).toBeDefined();
     // Literal `$&corrupt` must survive intact (no replace-pattern expansion).
     expect(scoreChunk!.text).toContain("$&corrupt");

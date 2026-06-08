@@ -1,6 +1,7 @@
 import type { SendEmailArgs } from "./types.js";
 
 const CRLF = "\r\n";
+// biome-ignore lint/suspicious/noControlCharactersInRegex: intentional — detects non-ASCII bytes in MIME headers (RFC 2047 Q/B encoding); \x00-\x7F defines the full ASCII range
 const NON_ASCII = /[^\x00-\x7F]/;
 
 function encodeHeaderIfNeeded(value: string): string {
