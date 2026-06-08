@@ -15,7 +15,7 @@ export interface EmailFetchJobData {
 export interface EmailFetchDeps {
   data: EmailFetchJobData;
   workspaceId: string;
-  tokenStore: Pick<SupabaseEmailTokenStore, "getByAddress" | "updateCursor">;
+  tokenStore: Pick<SupabaseEmailTokenStore, "getByAddress" | "updateCursor" | "markError">;
   driver: Pick<GmailDriver, "fetchNewMessages">;
   decrypt: (cipher: string, keyHex: string) => string;
   encryptionKey: string;
@@ -58,7 +58,17 @@ export async function handleEmailFetch(deps: EmailFetchDeps): Promise<void> {
       last_cursor: lastCursor,
     });
   } catch (err) {
-    logger.error({ err: String(err), email: tok.email_address }, "email.fetch: driver failed");
+    const msg = String(err);
+    logger.error({ err: msg, email: tok.email_address }, "email.fetch: driver failed");
+    // A revoked/expired refresh token (invalid_grant) is permanent: mark the
+    // token so the watchdog email-inbound check sees status='error' and the
+    // fetch/poll crons stop hammering a dead token. Transient errors (network)
+    // are left untouched so a blip doesn't disable a healthy mailbox.
+    if (/invalid_grant/i.test(msg)) {
+      await deps.tokenStore
+        .markError(tok.id, `invalid_grant on fetch: ${msg.slice(0, 200)}`)
+        .catch((e) => logger.error({ err: String(e) }, "email.fetch: markError failed"));
+    }
     return;
   }
 
