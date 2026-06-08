@@ -179,4 +179,83 @@ describe("handleEmailFetch", () => {
     expect(processInbound).toHaveBeenCalledTimes(1);
     expect(queueSend).not.toHaveBeenCalled();
   });
+
+  it("marks token status=error when the driver fails with invalid_grant", async () => {
+    const markError = vi.fn(async () => undefined);
+    const tokenStore = {
+      getByAddress: vi.fn(async () => ({
+        id: "tok1",
+        workspace_id: "ws1",
+        channel_id: "ch1",
+        email_address: "gavrilux.agent@gmail.com",
+        refresh_token_encrypted: "e",
+        scopes: [],
+        last_history_id: "1",
+        watch_expiration: null,
+        status: "active" as const,
+        last_error: null,
+        consecutive_renewal_failures: 0,
+        created_at: "2026-05-25T00:00:00.000Z",
+        updated_at: "2026-05-25T00:00:00.000Z",
+      })),
+      updateCursor: vi.fn(),
+      markError,
+    };
+    await handleEmailFetch({
+      data: { email_address: "gavrilux.agent@gmail.com", history_id: "1" },
+      workspaceId: "ws1",
+      tokenStore: tokenStore as never,
+      driver: {
+        fetchNewMessages: vi.fn(async () => {
+          throw new Error("invalid_grant — refresh token revoked or expired");
+        }),
+      } as never,
+      decrypt: vi.fn(() => "rt"),
+      encryptionKey: "k",
+      routerDeps: {} as never,
+      processInbound: vi.fn() as never,
+      queueSend: vi.fn() as never,
+    });
+    expect(markError).toHaveBeenCalledTimes(1);
+    expect(markError).toHaveBeenCalledWith("tok1", expect.stringContaining("invalid_grant"));
+  });
+
+  it("does NOT mark error on a transient (non-invalid_grant) driver failure", async () => {
+    const markError = vi.fn(async () => undefined);
+    const tokenStore = {
+      getByAddress: vi.fn(async () => ({
+        id: "tok1",
+        workspace_id: "ws1",
+        channel_id: "ch1",
+        email_address: "x@x.com",
+        refresh_token_encrypted: "e",
+        scopes: [],
+        last_history_id: "1",
+        watch_expiration: null,
+        status: "active" as const,
+        last_error: null,
+        consecutive_renewal_failures: 0,
+        created_at: "2026-05-25T00:00:00.000Z",
+        updated_at: "2026-05-25T00:00:00.000Z",
+      })),
+      updateCursor: vi.fn(),
+      markError,
+    };
+    await handleEmailFetch({
+      data: { email_address: "x@x.com", history_id: "1" },
+      workspaceId: "ws1",
+      tokenStore: tokenStore as never,
+      driver: {
+        fetchNewMessages: vi.fn(async () => {
+          throw new Error("ECONNRESET socket hang up");
+        }),
+      } as never,
+      decrypt: vi.fn(() => "rt"),
+      encryptionKey: "k",
+      routerDeps: {} as never,
+      processInbound: vi.fn() as never,
+      queueSend: vi.fn() as never,
+    });
+    expect(markError).not.toHaveBeenCalled();
+  });
 });
