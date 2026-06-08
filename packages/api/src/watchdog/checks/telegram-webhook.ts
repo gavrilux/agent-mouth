@@ -6,6 +6,7 @@ export interface TelegramWebhookCheckDeps {
   /** {PUBLIC_BASE_URL}/telegram-webhook */
   expectedUrl: string;
   fetchFn?: typeof fetch;
+  timeoutMs?: number;
 }
 
 const ID = "telegram-webhook";
@@ -13,7 +14,9 @@ const ID = "telegram-webhook";
 export async function checkTelegramWebhook(deps: TelegramWebhookCheckDeps): Promise<CheckResult> {
   const f = deps.fetchFn ?? fetch;
   try {
-    const res = await f(`https://api.telegram.org/bot${deps.botToken}/getWebhookInfo`);
+    const res = await f(`https://api.telegram.org/bot${deps.botToken}/getWebhookInfo`, {
+      signal: AbortSignal.timeout(deps.timeoutMs ?? 10_000),
+    });
     if (!res.ok) {
       return { id: ID, status: "down", message: `getWebhookInfo HTTP ${res.status}` };
     }

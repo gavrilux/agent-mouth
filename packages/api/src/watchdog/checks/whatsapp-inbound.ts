@@ -7,6 +7,7 @@ export interface WhatsAppInboundCheckDeps {
   phoneNumberId: string;
   accessToken: string;
   fetchFn?: typeof fetch;
+  timeoutMs?: number;
 }
 
 const ID = "whatsapp-inbound";
@@ -18,12 +19,25 @@ export async function checkWhatsAppInbound(deps: WhatsAppInboundCheckDeps): Prom
   const f = deps.fetchFn ?? fetch;
   const url = `https://graph.facebook.com/${deps.graphVersion}/${deps.phoneNumberId}?fields=id`;
   try {
-    const res = await f(url, { headers: { Authorization: `Bearer ${deps.accessToken}` } });
+    const res = await f(url, {
+      headers: { Authorization: `Bearer ${deps.accessToken}` },
+      signal: AbortSignal.timeout(deps.timeoutMs ?? 10_000),
+    });
     if (!res.ok) {
-      return { id: ID, status: "down", message: `whatsapp Graph API HTTP ${res.status}`, action: "Revisa WHATSAPP_ACCESS_TOKEN / número." };
+      return {
+        id: ID,
+        status: "down",
+        message: `whatsapp Graph API HTTP ${res.status}`,
+        action: "Revisa WHATSAPP_ACCESS_TOKEN / número.",
+      };
     }
     return { id: ID, status: "ok", message: "ok" };
   } catch (err) {
-    return { id: ID, status: "down", message: `whatsapp Graph API falló: ${String(err)}`, action: "Revisa WHATSAPP_ACCESS_TOKEN / número." };
+    return {
+      id: ID,
+      status: "down",
+      message: `whatsapp Graph API falló: ${String(err)}`,
+      action: "Revisa WHATSAPP_ACCESS_TOKEN / número.",
+    };
   }
 }
