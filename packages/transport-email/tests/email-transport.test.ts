@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { EmailTransport } from "../src/email-transport.js";
 import type { EmailDriver } from "../src/drivers/driver.js";
+import { EmailTransport } from "../src/email-transport.js";
 
 function makeFakeDriver(): EmailDriver {
   return {
@@ -44,9 +44,11 @@ describe("EmailTransport", () => {
       subject: "Re: hello",
     });
     expect(r.message_id).toBe("out1");
-    expect(driver.send).toHaveBeenCalledWith(expect.objectContaining({
-      payload: expect.objectContaining({ subject: "Re: hello", body_text: "Hi" }),
-    }));
+    expect(driver.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({ subject: "Re: hello", body_text: "Hi" }),
+      }),
+    );
   });
 
   it("send defaults subject to '(no subject)' when missing", async () => {
@@ -56,9 +58,11 @@ describe("EmailTransport", () => {
       auth: { refresh_token: "x", email_address: "gavrilux.agent@gmail.com" },
     });
     await t.send({ to: "marco@thecuina.com", body: "Hi" });
-    expect(driver.send).toHaveBeenCalledWith(expect.objectContaining({
-      payload: expect.objectContaining({ subject: "(no subject)" }),
-    }));
+    expect(driver.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({ subject: "(no subject)" }),
+      }),
+    );
   });
 
   it("send rejects when no to recipient", async () => {

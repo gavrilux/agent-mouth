@@ -1,15 +1,15 @@
-import { describe, it, expectTypeOf } from "vitest";
+import { describe, expectTypeOf, it } from "vitest";
 import type {
+  EmbeddingProvider,
   KnowledgeFile,
   KnowledgeSource,
   KnowledgeSourceConfig,
-  VectorStore,
-  VectorSearchResult,
-  WebSearchProvider,
-  WebSearchResult,
-  EmbeddingProvider,
   Tool,
   ToolContext,
+  VectorSearchResult,
+  VectorStore,
+  WebSearchProvider,
+  WebSearchResult,
 } from "../src/index.js";
 
 describe("phase-3 core types are exported", () => {

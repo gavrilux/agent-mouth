@@ -39,8 +39,7 @@ export async function init(_args: string[]): Promise<void> {
     });
     const groupUpdate = updates.find(
       (u: { message?: { chat: { type: string; id: number; title?: string } } }) =>
-        u.message &&
-        (u.message.chat.type === "group" || u.message.chat.type === "supergroup"),
+        u.message && (u.message.chat.type === "group" || u.message.chat.type === "supergroup"),
     );
     if (!groupUpdate) {
       console.error(

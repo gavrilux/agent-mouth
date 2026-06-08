@@ -1,5 +1,12 @@
-import { describe, it, expect } from "vitest";
-import type { Policy, Draft, AuditEntry, JobQueue, DraftStore, AuditLogStore } from "../src/index.js";
+import { describe, expect, it } from "vitest";
+import type {
+  AuditEntry,
+  AuditLogStore,
+  Draft,
+  DraftStore,
+  JobQueue,
+  Policy,
+} from "../src/index.js";
 
 describe("Phase 2 types", () => {
   it("Policy has guardrail caps", () => {

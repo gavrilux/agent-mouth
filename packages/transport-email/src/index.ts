@@ -11,7 +11,11 @@ export type { GmailDriverConfig } from "./drivers/gmail-driver.js";
 export { buildAuthUrl, exchangeCodeForTokens, refreshAccessToken } from "./oauth/google.js";
 export type { OAuthTokens } from "./oauth/google.js";
 export { encryptToken, decryptToken } from "./oauth/crypto.js";
-export { gmailMessageToInbound, gmailMessageToNormalized, normalizedEmailToInbound } from "./normalize.js";
+export {
+  gmailMessageToInbound,
+  gmailMessageToNormalized,
+  normalizedEmailToInbound,
+} from "./normalize.js";
 export { buildMime, mimeToBase64Url } from "./mime.js";
 export { EmailTransport } from "./email-transport.js";
 export type { EmailTransportOptions } from "./email-transport.js";

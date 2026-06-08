@@ -1,6 +1,6 @@
+import { buildMime, mimeToBase64Url } from "../mime.js";
 // packages/transport-email/src/drivers/gmail-driver.ts
 import { gmailMessageToNormalized } from "../normalize.js";
-import { buildMime, mimeToBase64Url } from "../mime.js";
 import { refreshAccessToken } from "../oauth/google.js";
 import type {
   EmailDriverAuthCtx,
@@ -71,7 +71,8 @@ export class GmailDriver implements EmailDriver {
       // historyId expired (>7 days idle) — fallback to messages.list since the last known time.
       return this.fallbackResync(args.auth, tok);
     }
-    if (!histRes.ok) throw new Error(`history.list failed: ${histRes.status} ${await histRes.text()}`);
+    if (!histRes.ok)
+      throw new Error(`history.list failed: ${histRes.status} ${await histRes.text()}`);
 
     const hist = (await histRes.json()) as {
       historyId: string;

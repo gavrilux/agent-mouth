@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import type { VectorStore, EmbeddingProvider } from "@agent-mouth/core";
+import type { EmbeddingProvider, VectorStore } from "@agent-mouth/core";
+import { describe, expect, it } from "vitest";
 import { SearchKnowledgeTool } from "../src/search-knowledge-tool.js";
 
 function ctx(): any {
@@ -77,7 +77,9 @@ describe("SearchKnowledgeTool", () => {
       dimensions: 4,
       init: async () => {},
       embed: async () => [],
-      embedQuery: async () => { throw "string-thrown"; },
+      embedQuery: async () => {
+        throw "string-thrown";
+      },
     };
     const store: VectorStore = {
       type: "fake",

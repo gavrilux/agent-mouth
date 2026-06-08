@@ -1,5 +1,5 @@
 // packages/transport-telegram/tests/normalize.test.ts
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { telegramUpdateToInbound } from "../src/normalize.js";
 
 describe("telegramUpdateToInbound", () => {
@@ -51,7 +51,12 @@ describe("telegramUpdateToInbound", () => {
   it("returns null for messages without text (sticker, etc.)", () => {
     const update = {
       update_id: 4,
-      message: { message_id: 50, from: { id: 1, is_bot: false, first_name: "x" }, chat: { id: 1, type: "private" }, date: 0 },
+      message: {
+        message_id: 50,
+        from: { id: 1, is_bot: false, first_name: "x" },
+        chat: { id: 1, type: "private" },
+        date: 0,
+      },
     };
     expect(telegramUpdateToInbound(update)).toBeNull();
   });

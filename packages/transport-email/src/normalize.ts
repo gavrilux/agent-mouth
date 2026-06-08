@@ -25,10 +25,7 @@ interface GmailMessage {
   payload: GmailPart;
 }
 
-function headerValue(
-  headers: GmailHeader[] | undefined,
-  name: string
-): string | undefined {
+function headerValue(headers: GmailHeader[] | undefined, name: string): string | undefined {
   return headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value;
 }
 
@@ -71,7 +68,10 @@ function decodeBody(part: GmailPart | null): string | null {
 }
 
 function stripHtmlToText(html: string): string {
-  return html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  return html
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function gmailMessageToNormalized(msg: GmailMessage): NormalizedEmail {
@@ -85,13 +85,10 @@ export function gmailMessageToNormalized(msg: GmailMessage): NormalizedEmail {
     : msg.internalDate
       ? new Date(Number(msg.internalDate)).toISOString()
       : new Date().toISOString();
-  const messageIdHeader =
-    headerValue(headers, "Message-ID") ?? `<${msg.id}@gmail.local>`;
+  const messageIdHeader = headerValue(headers, "Message-ID") ?? `<${msg.id}@gmail.local>`;
   const inReplyTo = headerValue(headers, "In-Reply-To") ?? null;
   const referencesRaw = headerValue(headers, "References");
-  const references = referencesRaw
-    ? referencesRaw.split(/\s+/).filter((s) => s.length > 0)
-    : [];
+  const references = referencesRaw ? referencesRaw.split(/\s+/).filter((s) => s.length > 0) : [];
 
   const plainPart = findPart(msg.payload, "text/plain");
   const htmlPart = findPart(msg.payload, "text/html");
@@ -116,10 +113,7 @@ export function gmailMessageToNormalized(msg: GmailMessage): NormalizedEmail {
   };
 }
 
-export function gmailMessageToInbound(
-  msg: GmailMessage,
-  channelId: string
-): InboundMessage {
+export function gmailMessageToInbound(msg: GmailMessage, channelId: string): InboundMessage {
   const n = gmailMessageToNormalized(msg);
   return {
     channel_type: "email",

@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleEmailWebhook } from "../src/email-webhook.js";
 
 function mockReq(body: unknown, headers: Record<string, string> = {}): IncomingMessage {
@@ -24,8 +24,13 @@ function mockRes(): { res: ServerResponse; status: () => number; body: () => str
   let status = 200;
   let body = "";
   const r = {
-    writeHead(s: number) { status = s; return r; },
-    end(b?: string) { if (b) body = b; },
+    writeHead(s: number) {
+      status = s;
+      return r;
+    },
+    end(b?: string) {
+      if (b) body = b;
+    },
     headersSent: false,
   } as unknown as ServerResponse;
   return { res: r, status: () => status, body: () => body };
@@ -43,16 +48,25 @@ describe("handleEmailWebhook", () => {
   });
 
   it("returns 200 + enqueues job for valid JWT and fresh historyId", async () => {
-    const data = Buffer.from(JSON.stringify({ emailAddress: "gavrilux.agent@gmail.com", historyId: "100" }), "utf8").toString("base64");
+    const data = Buffer.from(
+      JSON.stringify({ emailAddress: "gavrilux.agent@gmail.com", historyId: "100" }),
+      "utf8",
+    ).toString("base64");
     const { res, status } = mockRes();
     await handleEmailWebhook(
-      mockReq({ message: { data, messageId: "1" }, subscription: "s" }, { authorization: "Bearer fake.jwt.token" }),
+      mockReq(
+        { message: { data, messageId: "1" }, subscription: "s" },
+        { authorization: "Bearer fake.jwt.token" },
+      ),
       res,
       {
         verifyJwt: verifyJwt as never,
         webhookEventsStore: { recordOnce } as never,
         queueEnqueue: enqueue as never,
-        config: { audience: "https://agent-mouth.fly.dev/email-webhook", serviceAccountEmail: "sa@p.iam.gserviceaccount.com" },
+        config: {
+          audience: "https://agent-mouth.fly.dev/email-webhook",
+          serviceAccountEmail: "sa@p.iam.gserviceaccount.com",
+        },
       },
     );
     expect(status()).toBe(200);
@@ -67,7 +81,10 @@ describe("handleEmailWebhook", () => {
 
   it("returns 200 + no-op when duplicate (recordOnce → false)", async () => {
     recordOnce = vi.fn(async () => false);
-    const data = Buffer.from(JSON.stringify({ emailAddress: "x@x.com", historyId: "100" }), "utf8").toString("base64");
+    const data = Buffer.from(
+      JSON.stringify({ emailAddress: "x@x.com", historyId: "100" }),
+      "utf8",
+    ).toString("base64");
     const { res, status } = mockRes();
     await handleEmailWebhook(
       mockReq({ message: { data, messageId: "1" } }, { authorization: "Bearer fake.jwt" }),
@@ -76,7 +93,10 @@ describe("handleEmailWebhook", () => {
         verifyJwt: verifyJwt as never,
         webhookEventsStore: { recordOnce } as never,
         queueEnqueue: enqueue as never,
-        config: { audience: "https://agent-mouth.fly.dev/email-webhook", serviceAccountEmail: "sa@p.iam.gserviceaccount.com" },
+        config: {
+          audience: "https://agent-mouth.fly.dev/email-webhook",
+          serviceAccountEmail: "sa@p.iam.gserviceaccount.com",
+        },
       },
     );
     expect(status()).toBe(200);
@@ -84,7 +104,9 @@ describe("handleEmailWebhook", () => {
   });
 
   it("returns 401 on invalid JWT", async () => {
-    verifyJwt = vi.fn(async () => { throw new Error("bad jwt"); });
+    verifyJwt = vi.fn(async () => {
+      throw new Error("bad jwt");
+    });
     const { res, status } = mockRes();
     await handleEmailWebhook(
       mockReq({ message: { data: "x", messageId: "1" } }, { authorization: "Bearer bad" }),
@@ -102,7 +124,7 @@ describe("handleEmailWebhook", () => {
   it("returns 401 on missing Authorization header", async () => {
     const { res, status } = mockRes();
     await handleEmailWebhook(
-      mockReq({ message: { data: "x", messageId: "1" } }),  // no authorization
+      mockReq({ message: { data: "x", messageId: "1" } }), // no authorization
       res,
       {
         verifyJwt: verifyJwt as never,

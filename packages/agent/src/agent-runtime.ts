@@ -1,7 +1,7 @@
 // AgentRuntime interface only. Implementations land in Phase 2.
 // See: docs/superpowers/specs/2026-05-20-agent-mouth-vision-design.md §5.7
 
-import type { Message, ChannelType } from "@agent-mouth/core";
+import type { ChannelType, Message } from "@agent-mouth/core";
 
 export interface RuntimeConfig {
   provider: "claude" | "openai" | "gemini" | "ollama" | "mock";

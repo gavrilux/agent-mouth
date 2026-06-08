@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { GmailDriver } from "../src/drivers/gmail-driver.js";
 
 const origFetch = globalThis.fetch;
-afterEach(() => { globalThis.fetch = origFetch; });
+afterEach(() => {
+  globalThis.fetch = origFetch;
+});
 
 const refresh = "1//abc_refresh";
 const accessToken = "ya29.fresh";
@@ -11,10 +13,16 @@ describe("GmailDriver.whoami", () => {
   it("calls users.getProfile and returns email_address", async () => {
     globalThis.fetch = vi.fn(async (url: string | URL) => {
       if (String(url).includes("oauth2.googleapis.com")) {
-        return new Response(JSON.stringify({ access_token: accessToken, expires_in: 3599, token_type: "Bearer" }), { status: 200 });
+        return new Response(
+          JSON.stringify({ access_token: accessToken, expires_in: 3599, token_type: "Bearer" }),
+          { status: 200 },
+        );
       }
       if (String(url).includes("/gmail/v1/users/me/profile")) {
-        return new Response(JSON.stringify({ emailAddress: "gavrilux.agent@gmail.com", historyId: "100" }), { status: 200 });
+        return new Response(
+          JSON.stringify({ emailAddress: "gavrilux.agent@gmail.com", historyId: "100" }),
+          { status: 200 },
+        );
       }
       throw new Error(`unexpected: ${url}`);
     }) as never;
@@ -30,15 +38,16 @@ describe("GmailDriver.fetchNewMessages", () => {
     globalThis.fetch = vi.fn(async (url: string | URL) => {
       const s = String(url);
       if (s.includes("oauth2.googleapis.com")) {
-        return new Response(JSON.stringify({ access_token: accessToken, expires_in: 3599, token_type: "Bearer" }), { status: 200 });
+        return new Response(
+          JSON.stringify({ access_token: accessToken, expires_in: 3599, token_type: "Bearer" }),
+          { status: 200 },
+        );
       }
       if (s.includes("/users/me/history")) {
         return new Response(
           JSON.stringify({
             historyId: "200",
-            history: [
-              { messagesAdded: [{ message: { id: "m1", threadId: "t1" } }] },
-            ],
+            history: [{ messagesAdded: [{ message: { id: "m1", threadId: "t1" } }] }],
           }),
           { status: 200 },
         );
@@ -81,7 +90,10 @@ describe("GmailDriver.fetchNewMessages", () => {
     globalThis.fetch = vi.fn(async (url: string | URL) => {
       const s = String(url);
       if (s.includes("oauth2.googleapis.com")) {
-        return new Response(JSON.stringify({ access_token: accessToken, expires_in: 3599, token_type: "Bearer" }), { status: 200 });
+        return new Response(
+          JSON.stringify({ access_token: accessToken, expires_in: 3599, token_type: "Bearer" }),
+          { status: 200 },
+        );
       }
       if (s.includes("/users/me/history")) {
         return new Response("not found", { status: 404 });
@@ -90,17 +102,29 @@ describe("GmailDriver.fetchNewMessages", () => {
         return new Response(JSON.stringify({ messages: [{ id: "fallback1" }] }), { status: 200 });
       }
       if (s.includes("/users/me/messages/fallback1")) {
-        return new Response(JSON.stringify({
-          id: "fallback1", threadId: "tF",
-          payload: { mimeType: "text/plain", headers: [
-            { name: "From", value: "x@x.com" }, { name: "To", value: "y@y.com" },
-            { name: "Subject", value: "" }, { name: "Date", value: "Mon, 25 May 2026 10:00:00 +0200" },
-            { name: "Message-ID", value: "<f@b>" },
-          ], body: { data: Buffer.from("fb", "utf8").toString("base64url") } },
-        }), { status: 200 });
+        return new Response(
+          JSON.stringify({
+            id: "fallback1",
+            threadId: "tF",
+            payload: {
+              mimeType: "text/plain",
+              headers: [
+                { name: "From", value: "x@x.com" },
+                { name: "To", value: "y@y.com" },
+                { name: "Subject", value: "" },
+                { name: "Date", value: "Mon, 25 May 2026 10:00:00 +0200" },
+                { name: "Message-ID", value: "<f@b>" },
+              ],
+              body: { data: Buffer.from("fb", "utf8").toString("base64url") },
+            },
+          }),
+          { status: 200 },
+        );
       }
       if (s.includes("/users/me/profile")) {
-        return new Response(JSON.stringify({ emailAddress: "x@x.com", historyId: "999" }), { status: 200 });
+        return new Response(JSON.stringify({ emailAddress: "x@x.com", historyId: "999" }), {
+          status: 200,
+        });
       }
       throw new Error(`unexpected: ${url}`);
     }) as never;
@@ -120,7 +144,10 @@ describe("GmailDriver.send", () => {
     globalThis.fetch = vi.fn(async (url: string | URL, init?: RequestInit) => {
       const s = String(url);
       if (s.includes("oauth2.googleapis.com")) {
-        return new Response(JSON.stringify({ access_token: accessToken, expires_in: 3599, token_type: "Bearer" }), { status: 200 });
+        return new Response(
+          JSON.stringify({ access_token: accessToken, expires_in: 3599, token_type: "Bearer" }),
+          { status: 200 },
+        );
       }
       if (s.includes("/users/me/messages/send")) {
         const body = JSON.parse(init?.body as string);
@@ -153,10 +180,15 @@ describe("GmailDriver.watch", () => {
     globalThis.fetch = vi.fn(async (url: string | URL) => {
       const s = String(url);
       if (s.includes("oauth2.googleapis.com")) {
-        return new Response(JSON.stringify({ access_token: accessToken, expires_in: 3599, token_type: "Bearer" }), { status: 200 });
+        return new Response(
+          JSON.stringify({ access_token: accessToken, expires_in: 3599, token_type: "Bearer" }),
+          { status: 200 },
+        );
       }
       if (s.includes("/users/me/watch")) {
-        return new Response(JSON.stringify({ historyId: "500", expiration: "1717920000000" }), { status: 200 });
+        return new Response(JSON.stringify({ historyId: "500", expiration: "1717920000000" }), {
+          status: 200,
+        });
       }
       throw new Error(`unexpected: ${url}`);
     }) as never;

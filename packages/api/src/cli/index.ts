@@ -1,9 +1,9 @@
 #!/usr/bin/env node
+import { emailSetup } from "./email-setup.js";
 import { init } from "./init.js";
 import { join } from "./join.js";
-import { serve } from "./serve.js";
 import { serveHttp } from "./serve-http.js";
-import { emailSetup } from "./email-setup.js";
+import { serve } from "./serve.js";
 
 const cmd = process.argv[2];
 const args = process.argv.slice(3);

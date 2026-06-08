@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach } from "vitest";
 import type { WebSearchProvider } from "@agent-mouth/core";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
+  _resetWebSearchRegistry,
+  listWebSearchProviders,
   registerWebSearchProvider,
   resolveWebSearchProvider,
-  listWebSearchProviders,
-  _resetWebSearchRegistry,
 } from "../src/registry.js";
 
 describe("web search registry", () => {
@@ -25,7 +25,7 @@ describe("web search registry", () => {
   it("throws when API key missing", async () => {
     registerWebSearchProvider("tavily", {
       apiKeyEnv: "TAVILY_API_KEY",
-      factory: () => ({} as WebSearchProvider),
+      factory: () => ({}) as WebSearchProvider,
     });
     await expect(resolveWebSearchProvider("tavily", {})).rejects.toThrow(/TAVILY_API_KEY/);
   });

@@ -1,13 +1,21 @@
-import type {
-  AuditLogStore, ContactStore, MessageStore, Policy, WorkspaceStore,
-} from "@agent-mouth/core";
-import type {
-  AgentRuntime, AgentResponse, AgentContext, ChannelType, RespondTurnMessage,
-} from "@agent-mouth/agent-runtime";
-import type { Tool, ToolContext } from "@agent-mouth/core";
-import { WorkingMemoryBuilder } from "@agent-mouth/agent-memory";
 import { runPreLLMGuardrails } from "@agent-mouth/agent-guardrails";
+import { WorkingMemoryBuilder } from "@agent-mouth/agent-memory";
+import type {
+  AgentContext,
+  AgentResponse,
+  AgentRuntime,
+  ChannelType,
+  RespondTurnMessage,
+} from "@agent-mouth/agent-runtime";
 import { buildSystemPrompt, buildUserMessages } from "@agent-mouth/agent-runtime";
+import type {
+  AuditLogStore,
+  ContactStore,
+  MessageStore,
+  Policy,
+  WorkspaceStore,
+} from "@agent-mouth/core";
+import type { Tool, ToolContext } from "@agent-mouth/core";
 
 export interface AgentDeps {
   runtime: AgentRuntime;
@@ -26,7 +34,7 @@ export interface RespondInput {
   incomingMessageId: string;
   incomingContent: string;
   policy: Policy;
-  tools?: Tool[];   // NEW — when present and non-empty, runs tool-use loop via runtime.respondTurn
+  tools?: Tool[]; // NEW — when present and non-empty, runs tool-use loop via runtime.respondTurn
 }
 
 export type AgentDecision =
@@ -63,8 +71,14 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const t = setTimeout(() => reject(new Error("tool_timeout")), ms);
     p.then(
-      (v) => { clearTimeout(t); resolve(v); },
-      (e) => { clearTimeout(t); reject(e); },
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
     );
   });
 }
@@ -80,16 +94,23 @@ export class Agent {
     ctx: AgentContext;
     tools: Tool[];
     toolCtx: ToolContext;
-  }): Promise<{ response: AgentResponse; toolLog: ToolInvocationLog[]; blocked: boolean; blockReason?: string }> {
+  }): Promise<{
+    response: AgentResponse;
+    toolLog: ToolInvocationLog[];
+    blocked: boolean;
+    blockReason?: string;
+  }> {
     const { ctx, tools, toolCtx } = args;
 
     const systemPrompt = buildSystemPrompt(ctx);
-    const initialMessages: RespondTurnMessage[] = buildUserMessages(ctx).map((m): RespondTurnMessage => {
-      if (m.role === "user") {
-        return { role: "user", content: m.content };
-      }
-      return { role: "assistant", content: m.content };
-    });
+    const initialMessages: RespondTurnMessage[] = buildUserMessages(ctx).map(
+      (m): RespondTurnMessage => {
+        if (m.role === "user") {
+          return { role: "user", content: m.content };
+        }
+        return { role: "assistant", content: m.content };
+      },
+    );
 
     const toolDefs = tools.map((t) => ({
       name: t.name,
@@ -145,7 +166,10 @@ export class Agent {
             })),
             tokens: { in: totalTokensIn, out: totalTokensOut, cached: totalCached },
             costUsd: totalCost,
-            metadata: { confidence: resp.finalOutput.confidence, shouldEscalate: resp.finalOutput.should_escalate },
+            metadata: {
+              confidence: resp.finalOutput.confidence,
+              shouldEscalate: resp.finalOutput.should_escalate,
+            },
           },
           toolLog,
           blocked: false,
@@ -179,7 +203,12 @@ export class Agent {
         })),
       });
 
-      const resultsForNext: Array<{ type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean }> = [];
+      const resultsForNext: Array<{
+        type: "tool_result";
+        tool_use_id: string;
+        content: string;
+        is_error?: boolean;
+      }> = [];
 
       for (const call of resp.toolCalls) {
         invocationsRun++;
@@ -234,8 +263,6 @@ export class Agent {
       messages.push({ role: "user", content: resultsForNext });
 
       if (invocationsRun >= maxToolCalls) {
-        // Next iteration will force respond_to_user via tools=[]
-        continue;
       }
     }
 
@@ -294,11 +321,12 @@ export class Agent {
     const notes = contact.notes ?? "";
     const workingHistory = await this.workingMem.build(input.threadId);
 
-    const availableTools = input.tools?.map((t) => ({
-      name: t.name,
-      description: t.description,
-      input_schema: t.inputSchema as Record<string, unknown>,
-    })) ?? [];
+    const availableTools =
+      input.tools?.map((t) => ({
+        name: t.name,
+        description: t.description,
+        input_schema: t.inputSchema as Record<string, unknown>,
+      })) ?? [];
 
     const ctx: AgentContext = {
       workspaceId: input.workspaceId,
@@ -312,11 +340,11 @@ export class Agent {
         created_at: new Date().toISOString(),
       },
       threadHistory: workingHistory.map((m) => ({
-        id: (m as any).id,
-        direction: (m as any).direction,
-        content: (m as any).content,
-        sent_by: (m as any).sent_by,
-        created_at: (m as any).created_at,
+        id: m.id,
+        direction: m.direction,
+        content: m.content,
+        sent_by: m.sent_by,
+        created_at: m.created_at,
       })),
       policy: input.policy,
       availableTools,

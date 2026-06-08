@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
 import type { WebSearchProvider } from "@agent-mouth/core";
+import { describe, expect, it } from "vitest";
 import { SearchWebTool } from "../src/search-web-tool.js";
 
 function ctx(): any {
@@ -52,7 +52,9 @@ describe("SearchWebTool", () => {
       name: "weird",
       init: async () => {},
       // eslint-disable-next-line @typescript-eslint/no-throw-literal
-      search: async () => { throw "string-thrown"; },
+      search: async () => {
+        throw "string-thrown";
+      },
     };
     const tool = new SearchWebTool({ provider });
     const res = await tool.execute({ query: "x" }, ctx());

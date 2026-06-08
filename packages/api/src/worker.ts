@@ -1,10 +1,7 @@
 import { Agent } from "@agent-mouth/agent";
-import { handleEmailFetch } from "./email-fetch.js";
-import { handleEmailPollFallback } from "./email-poll-fallback.js";
-import { handleEmailWatchRenew } from "./email-watch-renew.js";
 import { NotesUpdater } from "@agent-mouth/agent-notes-updater";
-import { bootstrapTools, resolveToolsForPolicy } from "@agent-mouth/agent-tools";
 import { resolveRuntime } from "@agent-mouth/agent-runtime";
+import { bootstrapTools, resolveToolsForPolicy } from "@agent-mouth/agent-tools";
 import type { KnowledgeSource, Policy, Tool, Transport } from "@agent-mouth/core";
 import type {
   ContactStore,
@@ -14,12 +11,23 @@ import type {
   WorkspaceStore,
 } from "@agent-mouth/core";
 import { resolveEmbeddingProvider } from "@agent-mouth/embeddings";
-import { MarkdownChunker, indexSource, resolveKnowledgeSource } from "@agent-mouth/knowledge-source";
+import {
+  MarkdownChunker,
+  indexSource,
+  resolveKnowledgeSource,
+} from "@agent-mouth/knowledge-source";
 import { PgBossQueue } from "@agent-mouth/queue-pgboss";
-import { SupabaseAuditLogStore, SupabaseDraftStore, SupabaseKnowledgeFilesRepo } from "@agent-mouth/storage-supabase";
+import {
+  SupabaseAuditLogStore,
+  SupabaseDraftStore,
+  SupabaseKnowledgeFilesRepo,
+} from "@agent-mouth/storage-supabase";
 import { resolveVectorStore } from "@agent-mouth/vector-store";
 import { resolveWebSearchProvider } from "@agent-mouth/web-search";
 import { Client as PgClient } from "pg";
+import { handleEmailFetch } from "./email-fetch.js";
+import { handleEmailPollFallback } from "./email-poll-fallback.js";
+import { handleEmailWatchRenew } from "./email-watch-renew.js";
 import { logger } from "./logger.js";
 
 // Side-effect imports — register providers in their respective registries
@@ -137,12 +145,15 @@ export async function startWorker(
 
       // Load knowledge source config from DB — connect inside try/finally to
       // guarantee pg.end() runs even if pg.connect() itself throws.
-      const pg = new PgClient({ connectionString: deps.databaseUrl, connectionTimeoutMillis: 10_000 });
+      const pg = new PgClient({
+        connectionString: deps.databaseUrl,
+        connectionTimeoutMillis: 10_000,
+      });
       let knowledgeSource: KnowledgeSource | null = null;
       try {
         await pg.connect();
         const { rows } = await pg.query(
-          `SELECT id, type, config FROM knowledge_sources WHERE workspace_id = $1 LIMIT 1`,
+          "SELECT id, type, config FROM knowledge_sources WHERE workspace_id = $1 LIMIT 1",
           [deps.defaultWorkspaceId],
         );
         if (rows.length > 0) {
@@ -349,7 +360,7 @@ export async function handleRespondJob(
       const inputJson = JSON.stringify(tc.arguments);
       const details: Record<string, unknown> = {
         tool_name: tc.name,
-        input_summary: inputJson.length > 200 ? inputJson.slice(0, 200) + "…" : inputJson,
+        input_summary: inputJson.length > 200 ? `${inputJson.slice(0, 200)}…` : inputJson,
         success: tc.ok ?? false,
       };
       if (tc.id !== undefined) details.tool_id = tc.id;
@@ -462,7 +473,7 @@ export async function runKnowledgeSync(args: RunKnowledgeSyncArgs): Promise<void
   try {
     await pg.connect();
     const { rows } = await pg.query(
-      `SELECT id, type, config FROM knowledge_sources WHERE workspace_id = $1`,
+      "SELECT id, type, config FROM knowledge_sources WHERE workspace_id = $1",
       [args.workspaceId],
     );
     // Embedder + vector store don't depend on the row; resolve once per tick.
@@ -493,7 +504,7 @@ export async function runKnowledgeSync(args: RunKnowledgeSyncArgs): Promise<void
             filesRepo,
           });
           await pg.query(
-            `UPDATE knowledge_sources SET last_synced_at = NOW(), last_sync_status = $1 WHERE id = $2`,
+            "UPDATE knowledge_sources SET last_synced_at = NOW(), last_sync_status = $1 WHERE id = $2",
             ["ok", sourceId],
           );
           logger.info({ sourceId, result }, "[phase-3] knowledge.sync done");
@@ -502,10 +513,10 @@ export async function runKnowledgeSync(args: RunKnowledgeSyncArgs): Promise<void
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        await pg.query(
-          `UPDATE knowledge_sources SET last_sync_status = $1 WHERE id = $2`,
-          [`error: ${msg}`, sourceId],
-        );
+        await pg.query("UPDATE knowledge_sources SET last_sync_status = $1 WHERE id = $2", [
+          `error: ${msg}`,
+          sourceId,
+        ]);
         logger.error({ err, sourceId }, "[phase-3] knowledge.sync source failed");
       }
     }

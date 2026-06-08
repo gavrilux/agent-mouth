@@ -9,7 +9,7 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
   private apiKey = "";
 
   async init(env: Record<string, string | undefined>): Promise<void> {
-    const key = env["OPENAI_API_KEY"];
+    const key = env.OPENAI_API_KEY;
     if (!key) throw new Error("OPENAI_API_KEY required");
     this.apiKey = key;
   }

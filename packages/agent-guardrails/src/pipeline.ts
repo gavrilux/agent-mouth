@@ -1,10 +1,10 @@
 import type { AuditLogStore, MessageStore, Policy, WorkspaceStore } from "@agent-mouth/core";
 import { checkBudget } from "./budget.js";
-import { checkRateLimit } from "./rate-limit.js";
-import { checkLoopProtection } from "./loop.js";
-import { sanitize } from "./sanitizer.js";
-import { checkForbiddenTopics } from "./forbidden-topics.js";
 import { checkEscalateTriggers } from "./escalate-triggers.js";
+import { checkForbiddenTopics } from "./forbidden-topics.js";
+import { checkLoopProtection } from "./loop.js";
+import { checkRateLimit } from "./rate-limit.js";
+import { sanitize } from "./sanitizer.js";
 import type { GuardrailResult } from "./types.js";
 
 export interface PipelineCtx {

@@ -24,14 +24,15 @@ describe("parsePubSubEnvelope", () => {
   });
 
   it("throws on missing data field", () => {
-    expect(() =>
-      parsePubSubEnvelope({ message: { messageId: "1" }, subscription: "x" }),
-    ).toThrow();
+    expect(() => parsePubSubEnvelope({ message: { messageId: "1" }, subscription: "x" })).toThrow();
   });
 
   it("throws on invalid base64", () => {
     expect(() =>
-      parsePubSubEnvelope({ message: { data: "!!!not-base64!!!", messageId: "1" }, subscription: "x" }),
+      parsePubSubEnvelope({
+        message: { data: "!!!not-base64!!!", messageId: "1" },
+        subscription: "x",
+      }),
     ).toThrow();
   });
 

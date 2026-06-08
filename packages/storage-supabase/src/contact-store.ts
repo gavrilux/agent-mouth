@@ -3,7 +3,10 @@ import type { Contact, ContactStore } from "@agent-mouth/core";
 import { ContactSchema } from "@agent-mouth/core";
 
 export class SupabaseContactStore implements ContactStore {
-  constructor(private readonly url: string, private readonly key: string) {}
+  constructor(
+    private readonly url: string,
+    private readonly key: string,
+  ) {}
 
   private headers(extra: Record<string, string> = {}) {
     return {
@@ -36,18 +39,19 @@ export class SupabaseContactStore implements ContactStore {
 
   async updateNotes(contactId: string, notes: string): Promise<void> {
     const truncated = notes.length > 2000 ? notes.slice(0, 2000) : notes;
-    const res = await fetch(
-      `${this.url}/rest/v1/contacts?id=eq.${contactId}`,
-      {
-        method: "PATCH",
-        headers: this.headers(),
-        body: JSON.stringify({ notes: truncated }),
-      },
-    );
+    const res = await fetch(`${this.url}/rest/v1/contacts?id=eq.${contactId}`, {
+      method: "PATCH",
+      headers: this.headers(),
+      body: JSON.stringify({ notes: truncated }),
+    });
     if (!res.ok) throw new Error(`contacts updateNotes failed: ${res.status} ${await res.text()}`);
   }
 
-  async addEmailToMetadata(workspaceId: string, contactId: string, email: string): Promise<Contact> {
+  async addEmailToMetadata(
+    workspaceId: string,
+    contactId: string,
+    email: string,
+  ): Promise<Contact> {
     const lower = email.toLowerCase();
     // Atomic-ish read-modify-write: read current metadata, append (dedup), patch.
     const cur = await this.findById(workspaceId, contactId);
@@ -62,9 +66,11 @@ export class SupabaseContactStore implements ContactStore {
       headers: { ...this.headers(), Prefer: "return=representation" },
       body: JSON.stringify({ metadata: updated }),
     });
-    if (!res.ok) throw new Error(`contact metadata patch failed: ${res.status} ${await res.text()}`);
+    if (!res.ok)
+      throw new Error(`contact metadata patch failed: ${res.status} ${await res.text()}`);
     const rows = (await res.json()) as unknown[];
-    if (rows.length === 0) throw new Error(`contact metadata patch returned no rows for ${contactId}`);
+    if (rows.length === 0)
+      throw new Error(`contact metadata patch returned no rows for ${contactId}`);
     return ContactSchema.parse(rows[0]);
   }
 }

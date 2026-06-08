@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import simpleGit from "simple-git";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { GitKnowledgeSource } from "../src/git-source.js";
 
 let upstreamRepo: string;
@@ -34,7 +34,13 @@ describe("GitKnowledgeSource", () => {
   it("clones on first sync and reports added .md files only", async () => {
     const src = new GitKnowledgeSource();
     await src.init(
-      { repo_url: upstreamRepo, branch: "main", local_path: workdir, include_globs: ["**/*.md"], exclude_globs: [] },
+      {
+        repo_url: upstreamRepo,
+        branch: "main",
+        local_path: workdir,
+        include_globs: ["**/*.md"],
+        exclude_globs: [],
+      },
       {},
     );
     const result = await src.sync();
@@ -46,7 +52,13 @@ describe("GitKnowledgeSource", () => {
   it("listFiles returns only .md files post-sync", async () => {
     const src = new GitKnowledgeSource();
     await src.init(
-      { repo_url: upstreamRepo, branch: "main", local_path: workdir, include_globs: ["**/*.md"], exclude_globs: [] },
+      {
+        repo_url: upstreamRepo,
+        branch: "main",
+        local_path: workdir,
+        include_globs: ["**/*.md"],
+        exclude_globs: [],
+      },
       {},
     );
     await src.sync();
@@ -57,7 +69,13 @@ describe("GitKnowledgeSource", () => {
   it("readFile returns content + lastModified", async () => {
     const src = new GitKnowledgeSource();
     await src.init(
-      { repo_url: upstreamRepo, branch: "main", local_path: workdir, include_globs: ["**/*.md"], exclude_globs: [] },
+      {
+        repo_url: upstreamRepo,
+        branch: "main",
+        local_path: workdir,
+        include_globs: ["**/*.md"],
+        exclude_globs: [],
+      },
       {},
     );
     await src.sync();
@@ -68,7 +86,13 @@ describe("GitKnowledgeSource", () => {
   it("detects modifications on subsequent sync via content hash", async () => {
     const src = new GitKnowledgeSource();
     await src.init(
-      { repo_url: upstreamRepo, branch: "main", local_path: workdir, include_globs: ["**/*.md"], exclude_globs: [] },
+      {
+        repo_url: upstreamRepo,
+        branch: "main",
+        local_path: workdir,
+        include_globs: ["**/*.md"],
+        exclude_globs: [],
+      },
       {},
     );
     await src.sync();
@@ -82,7 +106,13 @@ describe("GitKnowledgeSource", () => {
   it("detects deletions on subsequent sync", async () => {
     const src = new GitKnowledgeSource();
     await src.init(
-      { repo_url: upstreamRepo, branch: "main", local_path: workdir, include_globs: ["**/*.md"], exclude_globs: [] },
+      {
+        repo_url: upstreamRepo,
+        branch: "main",
+        local_path: workdir,
+        include_globs: ["**/*.md"],
+        exclude_globs: [],
+      },
       {},
     );
     await src.sync();

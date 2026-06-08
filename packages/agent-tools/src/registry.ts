@@ -1,4 +1,4 @@
-import type { Tool, Policy } from "@agent-mouth/core";
+import type { Policy, Tool } from "@agent-mouth/core";
 
 const tools = new Map<string, Tool>();
 

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { MockRuntime } from "../src/mock-runtime.js";
 import type { AgentContext } from "../src/types.js";
 
@@ -6,7 +6,13 @@ const ctx: AgentContext = {
   workspaceId: "w1",
   contact: { id: "c1", workspace_id: "w1", display_name: "Test", notes: "", created_at: "" } as any,
   channelType: "telegram",
-  incomingMessage: { id: "m1", direction: "inbound", content: "hi", sent_by: "human", created_at: "" },
+  incomingMessage: {
+    id: "m1",
+    direction: "inbound",
+    content: "hi",
+    sent_by: "human",
+    created_at: "",
+  },
   threadHistory: [],
   policy: {} as any,
   availableTools: [],

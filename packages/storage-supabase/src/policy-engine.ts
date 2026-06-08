@@ -1,5 +1,5 @@
 // packages/storage-supabase/src/policy-engine.ts
-import type { Policy, PolicyEngine, Channel } from "@agent-mouth/core";
+import type { Channel, Policy, PolicyEngine } from "@agent-mouth/core";
 import { PolicySchema } from "@agent-mouth/core";
 
 const DEFAULT_POLICY: Policy = {
@@ -22,7 +22,10 @@ const DEFAULT_POLICY: Policy = {
 };
 
 export class SupabasePolicyEngine implements PolicyEngine {
-  constructor(private readonly url: string, private readonly key: string) {}
+  constructor(
+    private readonly url: string,
+    private readonly key: string,
+  ) {}
 
   private headers() {
     return {
@@ -43,9 +46,9 @@ export class SupabasePolicyEngine implements PolicyEngine {
       `workspace_id=eq.${args.workspaceId}`,
       `or=(contact_id.eq.${args.contactId},contact_id.is.null)`,
       `or=(channel_type.eq.${args.channelType},channel_type.is.null)`,
-      `select=*`,
-      `order=contact_id.desc.nullslast,channel_type.desc.nullslast,priority.desc`,
-      `limit=1`,
+      "select=*",
+      "order=contact_id.desc.nullslast,channel_type.desc.nullslast,priority.desc",
+      "limit=1",
     ];
     const url = `${this.url}/rest/v1/policies?${params.join("&")}`;
 

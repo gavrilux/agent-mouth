@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach } from "vitest";
 import type { EmbeddingProvider } from "@agent-mouth/core";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
+  _resetEmbeddingRegistry,
+  listEmbeddingProviders,
   registerEmbeddingProvider,
   resolveEmbeddingProvider,
-  listEmbeddingProviders,
-  _resetEmbeddingRegistry,
 } from "../src/registry.js";
 
 describe("embedding provider registry", () => {
@@ -27,7 +27,7 @@ describe("embedding provider registry", () => {
   it("throws when API key env var is missing", async () => {
     registerEmbeddingProvider("openai", {
       apiKeyEnv: "OPENAI_API_KEY",
-      factory: () => ({} as EmbeddingProvider),
+      factory: () => ({}) as EmbeddingProvider,
     });
     await expect(resolveEmbeddingProvider("openai", {})).rejects.toThrow(/OPENAI_API_KEY/);
   });

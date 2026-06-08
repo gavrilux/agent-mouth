@@ -1,9 +1,22 @@
 import { createHash } from "node:crypto";
-import { readFileSync, statSync, existsSync, readdirSync, writeFileSync, chmodSync, mkdtempSync } from "node:fs";
-import { join } from "node:path";
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { simpleGit, type SimpleGit } from "simple-git";
-import type { KnowledgeSource, KnowledgeFile, SyncResult, KnowledgeSourceConfig } from "@agent-mouth/core";
+import { join } from "node:path";
+import type {
+  KnowledgeFile,
+  KnowledgeSource,
+  KnowledgeSourceConfig,
+  SyncResult,
+} from "@agent-mouth/core";
+import { type SimpleGit, simpleGit } from "simple-git";
 
 export interface GitKnowledgeSourceConfig extends KnowledgeSourceConfig {
   repo_url: string;
@@ -24,8 +37,8 @@ function matchesGlob(path: string, globs: string[]): boolean {
       .replace(/\*\*/g, "::DS::")
       .replace(/\*/g, "[^/]*")
       .replace(/::DS::\//, "(?:.*/)?") // **/ matches zero or more dir segments
-      .replace(/::DS::/g, ".*");       // remaining ** (e.g. at end) matches anything
-    const re = new RegExp("^" + pattern + "$");
+      .replace(/::DS::/g, ".*"); // remaining ** (e.g. at end) matches anything
+    const re = new RegExp(`^${pattern}$`);
     if (re.test(path)) return true;
   }
   return false;
@@ -57,7 +70,10 @@ export class GitKnowledgeSource implements KnowledgeSource {
   private lastHashes = new Map<string, string>();
   private sshCommand: string | null = null;
 
-  async init(config: KnowledgeSourceConfig, env: Record<string, string | undefined>): Promise<void> {
+  async init(
+    config: KnowledgeSourceConfig,
+    env: Record<string, string | undefined>,
+  ): Promise<void> {
     this.cfg = config as GitKnowledgeSourceConfig;
     if (!this.cfg.repo_url || !this.cfg.branch || !this.cfg.local_path) {
       throw new Error("GitKnowledgeSource requires repo_url, branch, local_path");
@@ -71,7 +87,7 @@ export class GitKnowledgeSource implements KnowledgeSource {
       }
       const dir = mkdtempSync(join(tmpdir(), "git-ks-"));
       const keyFile = join(dir, "id_deploy");
-      writeFileSync(keyFile, key.endsWith("\n") ? key : key + "\n");
+      writeFileSync(keyFile, key.endsWith("\n") ? key : `${key}\n`);
       chmodSync(keyFile, 0o600);
       this.sshCommand = `ssh -i ${keyFile} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes`;
       // simple-git v3 does not reliably forward opts.env.GIT_SSH_COMMAND to the
@@ -89,7 +105,12 @@ export class GitKnowledgeSource implements KnowledgeSource {
   async sync(): Promise<SyncResult> {
     if (!existsSync(join(this.cfg.local_path, ".git"))) {
       const top = this.getGit();
-      await top.clone(this.cfg.repo_url, this.cfg.local_path, ["--depth", "1", "--branch", this.cfg.branch]);
+      await top.clone(this.cfg.repo_url, this.cfg.local_path, [
+        "--depth",
+        "1",
+        "--branch",
+        this.cfg.branch,
+      ]);
     } else {
       const repo = this.getGit(this.cfg.local_path);
       await repo.fetch("origin", this.cfg.branch);
@@ -115,7 +136,12 @@ export class GitKnowledgeSource implements KnowledgeSource {
         currentHashes.set(path, h);
         const prev = this.lastHashes.get(path);
         const stat = statSync(abs);
-        const kf: KnowledgeFile = { path, contentHash: h, lastModified: stat.mtime, size: stat.size };
+        const kf: KnowledgeFile = {
+          path,
+          contentHash: h,
+          lastModified: stat.mtime,
+          size: stat.size,
+        };
         if (prev === undefined) added.push(kf);
         else if (prev !== h) modified.push(kf);
       } catch (err) {

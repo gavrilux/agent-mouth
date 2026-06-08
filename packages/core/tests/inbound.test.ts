@@ -1,5 +1,5 @@
 // packages/core/tests/inbound.test.ts
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { InboundMessageSchema } from "../src/inbound.js";
 
 describe("InboundMessageSchema", () => {
@@ -23,9 +23,16 @@ describe("InboundMessageSchema", () => {
   it("requires content non-empty", () => {
     expect(() =>
       InboundMessageSchema.parse({
-        channel_type: "telegram", external_message_id: "1", external_thread_id: "1",
-        sender_identifier: "1", sender_display_name: "x", sender_handle: null,
-        chat_type: "private", content: "", attachments: [], raw_payload: {},
+        channel_type: "telegram",
+        external_message_id: "1",
+        external_thread_id: "1",
+        sender_identifier: "1",
+        sender_display_name: "x",
+        sender_handle: null,
+        chat_type: "private",
+        content: "",
+        attachments: [],
+        raw_payload: {},
         received_at: "2026-05-20T00:00:00Z",
       }),
     ).toThrow();

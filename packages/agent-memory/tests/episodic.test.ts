@@ -1,11 +1,23 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { EpisodicMemoryBuilder } from "../src/episodic.js";
 
 const fakeContactStore = {
   findById: async (_w: string, id: string) =>
-    id === "c1" ? { id: "c1", workspace_id: "w1", display_name: "Test", notes: "Likes coffee.", created_at: "" } : null,
-  upsertByDisplayName: async () => { throw new Error("not used"); },
-  updateNotes: async () => { throw new Error("not used"); },
+    id === "c1"
+      ? {
+          id: "c1",
+          workspace_id: "w1",
+          display_name: "Test",
+          notes: "Likes coffee.",
+          created_at: "",
+        }
+      : null,
+  upsertByDisplayName: async () => {
+    throw new Error("not used");
+  },
+  updateNotes: async () => {
+    throw new Error("not used");
+  },
 };
 
 describe("EpisodicMemoryBuilder", () => {

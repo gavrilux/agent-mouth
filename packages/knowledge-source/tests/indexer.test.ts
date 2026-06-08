@@ -1,7 +1,7 @@
-import { describe, it, expect, vi } from "vitest";
-import type { KnowledgeSource, EmbeddingProvider, VectorStore } from "@agent-mouth/core";
-import { indexSource, type KnowledgeFilesRepo } from "../src/indexer.js";
+import type { EmbeddingProvider, KnowledgeSource, VectorStore } from "@agent-mouth/core";
+import { describe, expect, it, vi } from "vitest";
 import { MarkdownChunker } from "../src/chunkers/markdown-chunker.js";
+import { type KnowledgeFilesRepo, indexSource } from "../src/indexer.js";
 
 interface FakeFileRow {
   id: string;
@@ -18,7 +18,12 @@ class FakeFilesRepo implements KnowledgeFilesRepo {
     if (!r) return null;
     return { id: r.id, content_hash: r.content_hash };
   }
-  async upsert(row: { source_id: string; path: string; content_hash: string; indexed_at: Date | null }): Promise<string> {
+  async upsert(row: {
+    source_id: string;
+    path: string;
+    content_hash: string;
+    indexed_at: Date | null;
+  }): Promise<string> {
     const existing = this.rows.find((r) => r.source_id === row.source_id && r.path === row.path);
     if (existing) {
       existing.content_hash = row.content_hash;
@@ -88,7 +93,9 @@ describe("indexSource", () => {
       init: async () => {},
       sync: async () => ({ added: [], modified: [], deleted: ["gone.md"], errors: [] }),
       listFiles: async () => [],
-      readFile: async () => { throw new Error("nope"); },
+      readFile: async () => {
+        throw new Error("nope");
+      },
     };
     const embedder: EmbeddingProvider = {
       name: "fake",
@@ -139,7 +146,9 @@ describe("indexSource", () => {
         errors: [{ path: "preexisting.md", error: "fs error" }],
       }),
       listFiles: async () => [],
-      readFile: async () => { throw new Error("read fail"); },
+      readFile: async () => {
+        throw new Error("read fail");
+      },
     };
     const embedder: EmbeddingProvider = {
       name: "fake",
@@ -193,7 +202,9 @@ describe("indexSource", () => {
     const store = {
       type: "fake",
       init: async () => {},
-      upsert: vi.fn(async () => { throw new Error("vector boom"); }),
+      upsert: vi.fn(async () => {
+        throw new Error("vector boom");
+      }),
       deleteByFileId: vi.fn(async () => {}),
       search: vi.fn(async () => []),
     } as unknown as VectorStore;
@@ -220,7 +231,9 @@ describe("indexSource", () => {
       init: async () => {},
       sync: async () => ({ added: [], modified: [], deleted: ["a.md", "b.md"], errors: [] }),
       listFiles: async () => [],
-      readFile: async () => { throw new Error("nope"); },
+      readFile: async () => {
+        throw new Error("nope");
+      },
     };
     const embedder: EmbeddingProvider = {
       name: "fake",
@@ -241,8 +254,20 @@ describe("indexSource", () => {
       search: vi.fn(async () => []),
     } as unknown as VectorStore;
     const filesRepo = new FakeFilesRepo();
-    filesRepo.rows.push({ id: "fa", source_id: "src-1", path: "a.md", content_hash: "h", indexed_at: new Date() });
-    filesRepo.rows.push({ id: "fb", source_id: "src-1", path: "b.md", content_hash: "h", indexed_at: new Date() });
+    filesRepo.rows.push({
+      id: "fa",
+      source_id: "src-1",
+      path: "a.md",
+      content_hash: "h",
+      indexed_at: new Date(),
+    });
+    filesRepo.rows.push({
+      id: "fb",
+      source_id: "src-1",
+      path: "b.md",
+      content_hash: "h",
+      indexed_at: new Date(),
+    });
     const chunker = new MarkdownChunker({ targetTokens: 400, maxTokens: 500, overlapTokens: 50 });
 
     const result = await indexSource({
