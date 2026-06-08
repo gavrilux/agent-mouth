@@ -21,10 +21,11 @@ const ok = (id: string): CheckResult => ({ id, status: "ok", message: "ok" });
 
 describe("reportSweep", () => {
   it("no envía nada cuando todo ok y no había estado malo", async () => {
-    const { deps, send } = makeDeps([], T0);
+    const { deps, send, upsert } = makeDeps([], T0);
     const body = await reportSweep([ok("email-inbound")], deps as never);
     expect(body).toBeNull();
     expect(send).not.toHaveBeenCalled();
+    expect(upsert).toHaveBeenCalledWith({ check_id: "email-inbound", status: "ok", first_seen_at: null, last_alerted_at: null });
   });
 
   it("alerta en la transición ok→down y guarda first_seen + last_alerted", async () => {
@@ -57,5 +58,12 @@ describe("reportSweep", () => {
     expect(send).toHaveBeenCalledTimes(1);
     expect(body).toContain("Recuperado");
     expect(upsert).toHaveBeenCalledWith({ check_id: "email-inbound", status: "ok", first_seen_at: null, last_alerted_at: null });
+  });
+
+  it("alerta en escalación warn→down dentro de la ventana de 24h", async () => {
+    const prev: WatchdogStateRow[] = [{ check_id: "daily-spend", status: "warn", first_seen_at: T0, last_alerted_at: T0 }];
+    const { deps, send } = makeDeps(prev, "2026-06-05T06:00:00.000Z"); // +6h, < 24h
+    await reportSweep([{ id: "daily-spend", status: "down", message: "gasto al 120%" }], deps as never);
+    expect(send).toHaveBeenCalledTimes(1);
   });
 });

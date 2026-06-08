@@ -17,8 +17,9 @@ export async function reportSweep(results: CheckResult[], deps: ReporterDeps): P
   const prev = new Map<string, WatchdogStateRow>();
   for (const row of await deps.stateStore.load()) prev.set(row.check_id, row);
 
-  const nowIso = deps.now().toISOString();
-  const nowMs = deps.now().getTime();
+  const now = deps.now();
+  const nowIso = now.toISOString();
+  const nowMs = now.getTime();
   const lines: string[] = [];
 
   for (const r of results) {
@@ -28,7 +29,7 @@ export async function reportSweep(results: CheckResult[], deps: ReporterDeps): P
     if (r.status !== "ok") {
       const firstSeen = wasBad && before?.first_seen_at ? before.first_seen_at : nowIso;
       const lastAlertedMs = before?.last_alerted_at ? new Date(before.last_alerted_at).getTime() : 0;
-      const isTransition = !wasBad;
+      const isTransition = !wasBad || before?.status !== r.status;
       const dueReminder = wasBad && nowMs - lastAlertedMs >= REMINDER_MS;
       if (isTransition || dueReminder) {
         lines.push(`${EMOJI[r.status]} ${r.message}${r.action ? ` → ${r.action}` : ""}`);

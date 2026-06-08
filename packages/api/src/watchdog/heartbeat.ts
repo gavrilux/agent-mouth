@@ -9,7 +9,7 @@ export interface HeartbeatDeps {
 /** Liveness ping. true si se envió, false si se omitió o falló (nunca lanza). */
 export async function sendHeartbeat(deps: HeartbeatDeps): Promise<boolean> {
   if (!deps.url) {
-    logger.warn("watchdog: HEALTHCHECKS_URL no configurado — heartbeat omitido");
+    logger.debug("watchdog: HEALTHCHECKS_URL no configurado — heartbeat omitido");
     return false;
   }
   const f = deps.fetchFn ?? fetch;
