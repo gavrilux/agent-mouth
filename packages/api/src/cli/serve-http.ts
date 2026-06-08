@@ -378,6 +378,26 @@ export async function serveHttp(): Promise<void> {
         emailFetchDeps,
         // Phase 1b: when set, handleRespondJob picks transport per channelType.
         transportRegistry: transportRegistry ?? undefined,
+        // Watchdog (v1) — inerte hasta ENABLE_WATCHDOG=true
+        enableWatchdog: process.env.ENABLE_WATCHDOG === "true",
+        watchdog: {
+          intervalMin: process.env.WATCHDOG_INTERVAL_MIN
+            ? Number(process.env.WATCHDOG_INTERVAL_MIN)
+            : 60,
+          emailExpiryMarginHours: process.env.WATCHDOG_EMAIL_EXPIRY_MARGIN_HOURS
+            ? Number(process.env.WATCHDOG_EMAIL_EXPIRY_MARGIN_HOURS)
+            : 24,
+          healthchecksUrl: process.env.HEALTHCHECKS_URL,
+          publicBaseUrl: process.env.PUBLIC_BASE_URL ?? "https://agent-mouth.fly.dev",
+          authToken: process.env.AGENT_MOUTH_AUTH_TOKEN ?? "",
+          botToken: process.env.AGENT_MOUTH_BOT_TOKEN ?? "",
+          whatsapp: {
+            enabled: process.env.ENABLE_WHATSAPP_TRANSPORT === "true",
+            graphVersion: process.env.WHATSAPP_GRAPH_VERSION ?? "v21.0",
+            phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID ?? "",
+            accessToken: process.env.WHATSAPP_ACCESS_TOKEN ?? "",
+          },
+        },
       });
       logger.info({ defaultModel }, "pg-boss worker started");
 
