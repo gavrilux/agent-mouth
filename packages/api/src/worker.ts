@@ -14,13 +14,30 @@ import type {
   WorkspaceStore,
 } from "@agent-mouth/core";
 import { resolveEmbeddingProvider } from "@agent-mouth/embeddings";
-import { MarkdownChunker, indexSource, resolveKnowledgeSource } from "@agent-mouth/knowledge-source";
+import {
+  MarkdownChunker,
+  indexSource,
+  resolveKnowledgeSource,
+} from "@agent-mouth/knowledge-source";
 import { PgBossQueue } from "@agent-mouth/queue-pgboss";
-import { SupabaseAuditLogStore, SupabaseDraftStore, SupabaseKnowledgeFilesRepo } from "@agent-mouth/storage-supabase";
+import {
+  SupabaseAuditLogStore,
+  SupabaseDraftStore,
+  SupabaseKnowledgeFilesRepo,
+} from "@agent-mouth/storage-supabase";
 import { resolveVectorStore } from "@agent-mouth/vector-store";
 import { resolveWebSearchProvider } from "@agent-mouth/web-search";
 import { Client as PgClient } from "pg";
 import { logger } from "./logger.js";
+import { checkEmailInbound } from "./watchdog/checks/email-inbound.js";
+import { checkTelegramWebhook } from "./watchdog/checks/telegram-webhook.js";
+import { checkWhatsAppInbound } from "./watchdog/checks/whatsapp-inbound.js";
+import { checkDatabase } from "./watchdog/checks/database.js";
+import { checkDailySpend } from "./watchdog/checks/daily-spend.js";
+import { reportSweep } from "./watchdog/reporter.js";
+import { sendHeartbeat } from "./watchdog/heartbeat.js";
+import { runWatchdogSweep } from "./watchdog/run.js";
+import { PgWatchdogStateStore } from "./watchdog/state.js";
 
 // Side-effect imports — register providers in their respective registries
 import "@agent-mouth/embeddings";
@@ -69,6 +86,17 @@ export interface WorkerDeps {
   };
   /** Phase 1b — when present, handleRespondJob picks transport per channelType (telegram vs email). */
   transportRegistry?: { get(type: import("@agent-mouth/core").ChannelType): Transport };
+  // Watchdog (v1) — fallos silenciosos de entrada + recursos
+  enableWatchdog?: boolean;
+  watchdog?: {
+    intervalMin: number;
+    emailExpiryMarginHours: number;
+    healthchecksUrl?: string;
+    publicBaseUrl: string;
+    authToken: string;
+    botToken: string;
+    whatsapp: { enabled: boolean; graphVersion: string; phoneNumberId: string; accessToken: string };
+  };
 }
 
 export interface RespondJobData {
@@ -137,7 +165,10 @@ export async function startWorker(
 
       // Load knowledge source config from DB — connect inside try/finally to
       // guarantee pg.end() runs even if pg.connect() itself throws.
-      const pg = new PgClient({ connectionString: deps.databaseUrl, connectionTimeoutMillis: 10_000 });
+      const pg = new PgClient({
+        connectionString: deps.databaseUrl,
+        connectionTimeoutMillis: 10_000,
+      });
       let knowledgeSource: KnowledgeSource | null = null;
       try {
         await pg.connect();
@@ -300,6 +331,71 @@ export async function startWorker(
 
     logger.info("email cron jobs registered (poll.fallback, watch.renew)");
   }
+
+  // ── Watchdog sweep (v1) ─────────────────────────────────────────────────────
+  if (deps.enableWatchdog && deps.watchdog && deps.alertChatId && deps.defaultWorkspaceId) {
+    const wd = deps.watchdog;
+    const workspaceId = deps.defaultWorkspaceId;
+    const alertChatId = deps.alertChatId;
+    const reauthUrl = `${wd.publicBaseUrl}/email-oauth-start?token=${wd.authToken}`;
+    const expectedWebhook = `${wd.publicBaseUrl}/telegram-webhook`;
+    const stateStore = new PgWatchdogStateStore(deps.databaseUrl);
+    const auditStore = new SupabaseAuditLogStore({ url: deps.supabaseUrl, anonKey: deps.supabaseAnonKey });
+    const tokenStore = deps.emailFetchDeps?.tokenStore;
+    const now = () => new Date();
+
+    await queue.work("watchdog.sweep", async () => {
+      const checks: { id: string; run: () => Promise<import("./watchdog/types.js").CheckResult> }[] = [
+        {
+          id: "telegram-webhook",
+          run: () => checkTelegramWebhook({ botToken: wd.botToken, expectedUrl: expectedWebhook }),
+        },
+        {
+          id: "whatsapp-inbound",
+          run: () =>
+            checkWhatsAppInbound({
+              enabled: wd.whatsapp.enabled,
+              graphVersion: wd.whatsapp.graphVersion,
+              phoneNumberId: wd.whatsapp.phoneNumberId,
+              accessToken: wd.whatsapp.accessToken,
+            }),
+        },
+        { id: "database", run: () => checkDatabase({ databaseUrl: deps.databaseUrl }) },
+        {
+          id: "daily-spend",
+          run: () => checkDailySpend({ workspaceId, audit: auditStore, workspaces: deps.workspaceStore, now }),
+        },
+      ];
+      if (tokenStore) {
+        checks.unshift({
+          id: "email-inbound",
+          run: () =>
+            checkEmailInbound({
+              tokenStore,
+              workspaceId,
+              reauthUrl,
+              expiryMarginMs: wd.emailExpiryMarginHours * 3_600_000,
+              now,
+            }),
+        });
+      }
+      await runWatchdogSweep({
+        checks,
+        report: (results) => reportSweep(results, { stateStore, transport: deps.transport, alertChatId, now }),
+        heartbeat: () => sendHeartbeat({ url: wd.healthchecksUrl }),
+      });
+    });
+
+    await queue.scheduleRecurring(
+      "watchdog.sweep",
+      `*/${wd.intervalMin} * * * *`,
+      {},
+      { singletonKey: "watchdog.sweep.singleton" },
+    );
+    await queue.send("watchdog.sweep", {}, { singletonKey: "watchdog.sweep.singleton" });
+    logger.info({ intervalMin: wd.intervalMin }, "[watchdog] sweep cron registered");
+  }
+  // ────────────────────────────────────────────────────────────────────────────
 
   return {
     queue,
@@ -502,10 +598,10 @@ export async function runKnowledgeSync(args: RunKnowledgeSyncArgs): Promise<void
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        await pg.query(
-          `UPDATE knowledge_sources SET last_sync_status = $1 WHERE id = $2`,
-          [`error: ${msg}`, sourceId],
-        );
+        await pg.query(`UPDATE knowledge_sources SET last_sync_status = $1 WHERE id = $2`, [
+          `error: ${msg}`,
+          sourceId,
+        ]);
         logger.error({ err, sourceId }, "[phase-3] knowledge.sync source failed");
       }
     }
