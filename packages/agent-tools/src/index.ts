@@ -4,16 +4,16 @@ export * from "./search-web-tool.js";
 export * from "./search-knowledge-tool.js";
 export * from "./read-knowledge-file-tool.js";
 
-import { registerTool } from "./registry.js";
-import { SearchWebTool } from "./search-web-tool.js";
-import { SearchKnowledgeTool } from "./search-knowledge-tool.js";
-import { ReadKnowledgeFileTool } from "./read-knowledge-file-tool.js";
 import type {
-  WebSearchProvider,
-  VectorStore,
   EmbeddingProvider,
   KnowledgeSource,
+  VectorStore,
+  WebSearchProvider,
 } from "@agent-mouth/core";
+import { ReadKnowledgeFileTool } from "./read-knowledge-file-tool.js";
+import { registerTool } from "./registry.js";
+import { SearchKnowledgeTool } from "./search-knowledge-tool.js";
+import { SearchWebTool } from "./search-web-tool.js";
 
 export interface BootstrapToolsDeps {
   webSearchProvider: WebSearchProvider;

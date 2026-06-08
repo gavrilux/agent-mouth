@@ -1,5 +1,5 @@
 // packages/storage-supabase/tests/policy-engine.test.ts
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SupabasePolicyEngine } from "../src/policy-engine.js";
 
 const SUPA_URL = "https://x.supabase.co";
@@ -17,10 +17,35 @@ describe("SupabasePolicyEngine", () => {
 
   it("returns the most specific policy when multiple rows match", async () => {
     // Supabase returns rows ordered by our request. Most-specific first.
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify([
-      { id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", workspace_id: WS, contact_id: CONTACT, channel_type: "telegram", policy: "auto", system_prompt: "", rules: {}, priority: 0, created_at: "2026-05-20T00:00:00Z" },
-      { id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", workspace_id: WS, contact_id: null, channel_type: null, policy: "silent", system_prompt: "", rules: {}, priority: 0, created_at: "2026-05-20T00:00:00Z" },
-    ]), { status: 200 }));
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify([
+          {
+            id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            workspace_id: WS,
+            contact_id: CONTACT,
+            channel_type: "telegram",
+            policy: "auto",
+            system_prompt: "",
+            rules: {},
+            priority: 0,
+            created_at: "2026-05-20T00:00:00Z",
+          },
+          {
+            id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            workspace_id: WS,
+            contact_id: null,
+            channel_type: null,
+            policy: "silent",
+            system_prompt: "",
+            rules: {},
+            priority: 0,
+            created_at: "2026-05-20T00:00:00Z",
+          },
+        ]),
+        { status: 200 },
+      ),
+    );
 
     const e = new SupabasePolicyEngine(SUPA_URL, KEY);
     const p = await e.evaluate({ workspaceId: WS, contactId: CONTACT, channelType: "telegram" });
@@ -44,6 +69,8 @@ describe("SupabasePolicyEngine", () => {
     expect(calledUrl).toContain(`or=(contact_id.eq.${CONTACT},contact_id.is.null)`);
     expect(calledUrl).toContain(`or=(channel_type.eq.telegram,channel_type.is.null)`);
     // most-specific-first order: contact desc nulls last, channel_type desc nulls last, priority desc
-    expect(calledUrl).toContain(`order=contact_id.desc.nullslast,channel_type.desc.nullslast,priority.desc`);
+    expect(calledUrl).toContain(
+      `order=contact_id.desc.nullslast,channel_type.desc.nullslast,priority.desc`,
+    );
   });
 });

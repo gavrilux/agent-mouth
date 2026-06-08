@@ -1,10 +1,14 @@
-import { describe, it, expect } from "vitest";
-import { Agent } from "../src/agent.js";
 import type {
-  AgentRuntime, AgentContext, AgentResponse, RuntimeConfig,
-  RespondTurnRequest, RespondTurnResponse,
+  AgentContext,
+  AgentResponse,
+  AgentRuntime,
+  RespondTurnRequest,
+  RespondTurnResponse,
+  RuntimeConfig,
 } from "@agent-mouth/agent-runtime";
 import type { Tool, ToolContext, ToolExecutionResult } from "@agent-mouth/core";
+import { describe, expect, it } from "vitest";
+import { Agent } from "../src/agent.js";
 
 // ---- shared test stubs ----
 
@@ -13,7 +17,9 @@ const contactStore = {
     id === "c1"
       ? { id: "c1", workspace_id: "w1", display_name: "G", notes: "notes", created_at: "" }
       : null,
-  upsertByDisplayName: async () => { throw new Error("not used"); },
+  upsertByDisplayName: async () => {
+    throw new Error("not used");
+  },
   updateNotes: async () => {},
 };
 
@@ -23,17 +29,18 @@ const audit = {
   sumCostUsdSince: async () => 0,
   countSentOrDraftSince: async () => 0,
   findRespondedFor: async () => null,
-  write: async () => ({} as any),
+  write: async () => ({}) as any,
 };
 
 const workspaces = {
-  getDefault: async () => ({
-    id: "w1",
-    daily_budget_usd_cap: 5,
-    name: "T",
-    plan: "self-host",
-    created_at: "",
-  } as any),
+  getDefault: async () =>
+    ({
+      id: "w1",
+      daily_budget_usd_cap: 5,
+      name: "T",
+      plan: "self-host",
+      created_at: "",
+    }) as any,
 };
 
 const basePolicy = {

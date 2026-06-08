@@ -1,5 +1,10 @@
+import type {
+  VectorChunkInput,
+  VectorSearchFilter,
+  VectorSearchResult,
+  VectorStore,
+} from "@agent-mouth/core";
 import { Client } from "pg";
-import type { VectorStore, VectorChunkInput, VectorSearchResult, VectorSearchFilter } from "@agent-mouth/core";
 
 export interface PgvectorStoreOptions {
   tablePrefix?: string;

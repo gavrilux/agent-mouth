@@ -5,21 +5,23 @@ describe("handleEmailFetch", () => {
   it("fetches new messages, persists, calls processInbound", async () => {
     const decryptToken = vi.fn(() => "1//refresh_xyz");
     const fetchNewMessages = vi.fn(async () => ({
-      messages: [{
-        external_id: "m1",
-        external_thread_id: "t1",
-        from_address: "marco@thecuina.com",
-        from_name: "Marco",
-        to_addresses: ["gavrilux.agent@gmail.com"],
-        cc_addresses: [],
-        subject: "Hi",
-        body_text: "hello",
-        body_html: null,
-        message_id_header: "<a@b>",
-        in_reply_to_header: null,
-        references_header: [],
-        received_at: "2026-05-25T10:00:00.000Z",
-      }],
+      messages: [
+        {
+          external_id: "m1",
+          external_thread_id: "t1",
+          from_address: "marco@thecuina.com",
+          from_name: "Marco",
+          to_addresses: ["gavrilux.agent@gmail.com"],
+          cc_addresses: [],
+          subject: "Hi",
+          body_text: "hello",
+          body_html: null,
+          message_id_header: "<a@b>",
+          in_reply_to_header: null,
+          references_header: [],
+          received_at: "2026-05-25T10:00:00.000Z",
+        },
+      ],
       next_cursor: "999",
     }));
     const updateCursor = vi.fn(async () => undefined);
@@ -87,11 +89,19 @@ describe("handleEmailFetch", () => {
     const processInbound = vi.fn();
     const tokenStore = {
       getByAddress: vi.fn(async () => ({
-        id: "tok1", workspace_id: "ws1", channel_id: "ch1",
-        email_address: "x@x.com", refresh_token_encrypted: "e",
-        scopes: [], last_history_id: null, watch_expiration: null,
-        status: "revoked" as const, last_error: null, consecutive_renewal_failures: 0,
-        created_at: "2026-05-25T00:00:00.000Z", updated_at: "2026-05-25T00:00:00.000Z",
+        id: "tok1",
+        workspace_id: "ws1",
+        channel_id: "ch1",
+        email_address: "x@x.com",
+        refresh_token_encrypted: "e",
+        scopes: [],
+        last_history_id: null,
+        watch_expiration: null,
+        status: "revoked" as const,
+        last_error: null,
+        consecutive_renewal_failures: 0,
+        created_at: "2026-05-25T00:00:00.000Z",
+        updated_at: "2026-05-25T00:00:00.000Z",
       })),
       updateCursor: vi.fn(),
     };
@@ -111,15 +121,26 @@ describe("handleEmailFetch", () => {
   });
 
   it("skips agent.respond when policy is silent", async () => {
-    const processInbound = vi.fn(async () => ({ kind: "persisted" as const, policy: "silent" as const }));
+    const processInbound = vi.fn(async () => ({
+      kind: "persisted" as const,
+      policy: "silent" as const,
+    }));
     const queueSend = vi.fn();
     const tokenStore = {
       getByAddress: vi.fn(async () => ({
-        id: "tok1", workspace_id: "ws1", channel_id: "ch1",
-        email_address: "x@x.com", refresh_token_encrypted: "e",
-        scopes: [], last_history_id: "1", watch_expiration: null,
-        status: "active" as const, last_error: null, consecutive_renewal_failures: 0,
-        created_at: "2026-05-25T00:00:00.000Z", updated_at: "2026-05-25T00:00:00.000Z",
+        id: "tok1",
+        workspace_id: "ws1",
+        channel_id: "ch1",
+        email_address: "x@x.com",
+        refresh_token_encrypted: "e",
+        scopes: [],
+        last_history_id: "1",
+        watch_expiration: null,
+        status: "active" as const,
+        last_error: null,
+        consecutive_renewal_failures: 0,
+        created_at: "2026-05-25T00:00:00.000Z",
+        updated_at: "2026-05-25T00:00:00.000Z",
       })),
       updateCursor: vi.fn(),
     };
@@ -127,17 +148,28 @@ describe("handleEmailFetch", () => {
       data: { email_address: "x@x.com", history_id: "2" },
       workspaceId: "ws1",
       tokenStore: tokenStore as never,
-      driver: { fetchNewMessages: vi.fn(async () => ({
-        messages: [{
-          external_id: "m1", external_thread_id: "t1",
-          from_address: "y@y.com", from_name: null,
-          to_addresses: ["x@x.com"], cc_addresses: [],
-          subject: "", body_text: "x", body_html: null,
-          message_id_header: "<a>", in_reply_to_header: null, references_header: [],
-          received_at: "2026-05-25T00:00:00.000Z",
-        }],
-        next_cursor: "2",
-      })) } as never,
+      driver: {
+        fetchNewMessages: vi.fn(async () => ({
+          messages: [
+            {
+              external_id: "m1",
+              external_thread_id: "t1",
+              from_address: "y@y.com",
+              from_name: null,
+              to_addresses: ["x@x.com"],
+              cc_addresses: [],
+              subject: "",
+              body_text: "x",
+              body_html: null,
+              message_id_header: "<a>",
+              in_reply_to_header: null,
+              references_header: [],
+              received_at: "2026-05-25T00:00:00.000Z",
+            },
+          ],
+          next_cursor: "2",
+        })),
+      } as never,
       decrypt: vi.fn(() => "rt"),
       encryptionKey: "k",
       routerDeps: {} as never,

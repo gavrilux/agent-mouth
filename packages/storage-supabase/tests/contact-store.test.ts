@@ -1,5 +1,5 @@
 // packages/storage-supabase/tests/contact-store.test.ts
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SupabaseContactStore } from "../src/contact-store.js";
 
 describe("SupabaseContactStore", () => {
@@ -22,9 +22,18 @@ describe("SupabaseContactStore", () => {
 
   it("upsertByDisplayName POSTs with merge-duplicates Prefer header", async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(JSON.stringify([
-        { id: CONTACT_ID, workspace_id: WS, display_name: "Gavrilo", notes: "", created_at: "2026-05-20T00:00:00Z" },
-      ]), { status: 201 }),
+      new Response(
+        JSON.stringify([
+          {
+            id: CONTACT_ID,
+            workspace_id: WS,
+            display_name: "Gavrilo",
+            notes: "",
+            created_at: "2026-05-20T00:00:00Z",
+          },
+        ]),
+        { status: 201 },
+      ),
     );
     const store = new SupabaseContactStore(SUPA_URL, KEY);
     const c = await store.upsertByDisplayName(WS, "Gavrilo");
@@ -47,9 +56,18 @@ describe("SupabaseContactStore", () => {
     fetchMock.mockResolvedValueOnce(new Response("", { status: 200 }));
     // findById after update
     fetchMock.mockResolvedValueOnce(
-      new Response(JSON.stringify([
-        { id: CONTACT_ID, workspace_id: WS, display_name: "Gavrilo", notes: "x".repeat(2000), created_at: "2026-05-20T00:00:00Z" },
-      ]), { status: 200 }),
+      new Response(
+        JSON.stringify([
+          {
+            id: CONTACT_ID,
+            workspace_id: WS,
+            display_name: "Gavrilo",
+            notes: "x".repeat(2000),
+            created_at: "2026-05-20T00:00:00Z",
+          },
+        ]),
+        { status: 200 },
+      ),
     );
     const store = new SupabaseContactStore(SUPA_URL, KEY);
     await store.updateNotes(CONTACT_ID, long);

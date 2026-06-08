@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { ChannelTypeSchema, MessageSchema, type Message } from "../src/domain";
+import { ChannelTypeSchema, type Message, MessageSchema } from "../src/domain";
 
 describe("Domain types", () => {
   it("validates channel types via Zod", () => {

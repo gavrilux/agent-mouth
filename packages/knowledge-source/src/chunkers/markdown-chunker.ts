@@ -26,7 +26,11 @@ interface Section {
 
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?/;
 
-function parseFrontmatter(md: string): { frontmatter: Record<string, unknown>; rest: string; bodyStartLine: number } {
+function parseFrontmatter(md: string): {
+  frontmatter: Record<string, unknown>;
+  rest: string;
+  bodyStartLine: number;
+} {
   const m = md.match(FRONTMATTER_RE);
   if (!m) return { frontmatter: {}, rest: md, bodyStartLine: 1 };
   const yaml = m[1] ?? "";
@@ -91,7 +95,11 @@ function splitSections(md: string, bodyStartLine: number): Section[] {
       if (h3m) {
         flush(lineNum - 1);
         h3 = (h3m[1] ?? "").trim();
-        current = { headingPath: `# ${h1} > ## ${h2} > ### ${h3}`, lineStart: lineNum, bodyLines: [raw] };
+        current = {
+          headingPath: `# ${h1} > ## ${h2} > ### ${h3}`,
+          lineStart: lineNum,
+          bodyLines: [raw],
+        };
         return;
       }
     }
@@ -195,9 +203,7 @@ export class MarkdownChunker {
 
   split(md: string, _ctx: { path: string }): Chunk[] {
     const { frontmatter, rest, bodyStartLine } = parseFrontmatter(md);
-    const sections = splitSections(rest, bodyStartLine).filter(
-      (s) => s.body.trim().length > 0
-    );
+    const sections = splitSections(rest, bodyStartLine).filter((s) => s.body.trim().length > 0);
     const chunks: Chunk[] = [];
 
     for (const section of sections) {

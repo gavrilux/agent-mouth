@@ -1,4 +1,9 @@
-import type { EmbeddingProvider, VectorStore, KnowledgeSource, SyncResult } from "@agent-mouth/core";
+import type {
+  EmbeddingProvider,
+  KnowledgeSource,
+  SyncResult,
+  VectorStore,
+} from "@agent-mouth/core";
 import type { MarkdownChunker } from "./chunkers/markdown-chunker.js";
 
 export interface KnowledgeFilesRepo {

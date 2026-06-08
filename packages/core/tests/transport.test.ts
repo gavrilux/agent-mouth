@@ -1,20 +1,20 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import type {
-  Transport,
-  TransportConfig,
+  Contact,
+  Identity,
   ReceivedMessage,
   SentMessage,
-  Identity,
-  Contact,
+  Transport,
+  TransportConfig,
 } from "../src/transport";
 
 describe("Transport interface contract", () => {
   it("exports Transport with all required methods", () => {
     const _stub: Transport = {
       init: async (_: TransportConfig) => {},
-      whoami: async () => ({ handle: "x", display_name: "X" } as Identity),
+      whoami: async () => ({ handle: "x", display_name: "X" }) as Identity,
       listContacts: async () => [] as Contact[],
-      send: async () => ({ message_id: "x", timestamp: new Date() } as SentMessage),
+      send: async () => ({ message_id: "x", timestamp: new Date() }) as SentMessage,
       receive: async () => [] as ReceivedMessage[],
       waitForMessages: async () => [] as ReceivedMessage[],
       close: async () => {},

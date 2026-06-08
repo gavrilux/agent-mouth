@@ -1,5 +1,5 @@
-import { encode, decode } from "gpt-tokenizer";
-import type { Tool, ToolContext, KnowledgeSource } from "@agent-mouth/core";
+import type { KnowledgeSource, Tool, ToolContext } from "@agent-mouth/core";
+import { decode, encode } from "gpt-tokenizer";
 
 const MAX_TOKENS = 50000;
 
@@ -14,7 +14,11 @@ export class ReadKnowledgeFileTool implements Tool<ReadKnowledgeFileInput> {
   readonly inputSchema = {
     type: "object" as const,
     properties: {
-      path: { type: "string", description: "Relative path returned by search_knowledge, e.g. '02-Proyectos/agent-mouth.md'" },
+      path: {
+        type: "string",
+        description:
+          "Relative path returned by search_knowledge, e.g. '02-Proyectos/agent-mouth.md'",
+      },
     },
     required: ["path"],
   };

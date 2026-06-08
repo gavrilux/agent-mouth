@@ -1,9 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  buildAuthUrl,
-  exchangeCodeForTokens,
-  refreshAccessToken,
-} from "../src/oauth/google.js";
+import { buildAuthUrl, exchangeCodeForTokens, refreshAccessToken } from "../src/oauth/google.js";
 
 describe("buildAuthUrl", () => {
   it("includes client_id, redirect_uri, scopes and access_type=offline", () => {
@@ -26,20 +22,23 @@ describe("buildAuthUrl", () => {
 describe("exchangeCodeForTokens", () => {
   const origFetch = globalThis.fetch;
   beforeEach(() => {
-    globalThis.fetch = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          access_token: "ya29.abc",
-          refresh_token: "1//refresh_xyz",
-          expires_in: 3599,
-          scope: "https://www.googleapis.com/auth/gmail.readonly",
-          token_type: "Bearer",
-        }),
-        { status: 200 },
-      ),
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            access_token: "ya29.abc",
+            refresh_token: "1//refresh_xyz",
+            expires_in: 3599,
+            scope: "https://www.googleapis.com/auth/gmail.readonly",
+            token_type: "Bearer",
+          }),
+          { status: 200 },
+        ),
     ) as never;
   });
-  afterEach(() => { globalThis.fetch = origFetch; });
+  afterEach(() => {
+    globalThis.fetch = origFetch;
+  });
 
   it("posts form to token endpoint and returns parsed tokens", async () => {
     const r = await exchangeCodeForTokens({
@@ -67,14 +66,17 @@ describe("exchangeCodeForTokens", () => {
 
 describe("refreshAccessToken", () => {
   const origFetch = globalThis.fetch;
-  afterEach(() => { globalThis.fetch = origFetch; });
+  afterEach(() => {
+    globalThis.fetch = origFetch;
+  });
 
   it("posts refresh_token and returns access_token", async () => {
-    globalThis.fetch = vi.fn(async () =>
-      new Response(
-        JSON.stringify({ access_token: "ya29.new", expires_in: 3599, token_type: "Bearer" }),
-        { status: 200 },
-      ),
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({ access_token: "ya29.new", expires_in: 3599, token_type: "Bearer" }),
+          { status: 200 },
+        ),
     ) as never;
     const r = await refreshAccessToken({ clientId: "c", clientSecret: "s", refreshToken: "rt" });
     expect(r.access_token).toBe("ya29.new");
@@ -82,8 +84,8 @@ describe("refreshAccessToken", () => {
   });
 
   it("throws ExpiredRefreshTokenError on invalid_grant", async () => {
-    globalThis.fetch = vi.fn(async () =>
-      new Response(JSON.stringify({ error: "invalid_grant" }), { status: 400 }),
+    globalThis.fetch = vi.fn(
+      async () => new Response(JSON.stringify({ error: "invalid_grant" }), { status: 400 }),
     ) as never;
     await expect(
       refreshAccessToken({ clientId: "c", clientSecret: "s", refreshToken: "bad" }),

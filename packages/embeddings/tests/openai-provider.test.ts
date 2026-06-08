@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OpenAIEmbeddingProvider } from "../src/openai-provider.js";
 
 describe("OpenAIEmbeddingProvider", () => {
@@ -19,7 +19,10 @@ describe("OpenAIEmbeddingProvider", () => {
     const p = new OpenAIEmbeddingProvider();
     await p.init({ OPENAI_API_KEY: "sk-test" });
     const out = await p.embed(["hello", "world"]);
-    expect(out).toEqual([[0.1, 0.2], [0.3, 0.4]]);
+    expect(out).toEqual([
+      [0.1, 0.2],
+      [0.3, 0.4],
+    ]);
     expect(globalThis.fetch).toHaveBeenCalledWith(
       "https://api.openai.com/v1/embeddings",
       expect.objectContaining({

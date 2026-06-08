@@ -1,14 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { buildSystemPrompt, buildUserMessages } from "./prompt-builder.js";
 import type {
   AgentContext,
   AgentResponse,
   AgentRuntime,
-  RuntimeConfig,
   RespondTurnRequest,
   RespondTurnResponse,
+  RuntimeConfig,
   RuntimeStopReason,
 } from "./types.js";
-import { buildSystemPrompt, buildUserMessages } from "./prompt-builder.js";
 
 const PRICING: Record<string, { in: number; out: number; cached_read: number }> = {
   "claude-sonnet-4-6": { in: 3, out: 15, cached_read: 0.3 },
@@ -62,7 +62,8 @@ export class ClaudeRuntime implements AgentRuntime {
     const tokens = {
       in: res.usage.input_tokens,
       out: res.usage.output_tokens,
-      cached: (res.usage as unknown as Record<string, unknown>).cache_read_input_tokens as number ?? 0,
+      cached:
+        ((res.usage as unknown as Record<string, unknown>).cache_read_input_tokens as number) ?? 0,
     };
     const costUsd = this.computeCost(model, tokens);
 

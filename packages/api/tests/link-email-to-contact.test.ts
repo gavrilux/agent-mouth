@@ -14,7 +14,10 @@ describe("link_email_to_contact", () => {
 
     const r = await linkEmailToContactTool.handler(
       { contact_id: "00000000-0000-0000-0000-000000000001", email: "Marco@TheCuina.com" },
-      { contactStore: { addEmailToMetadata } as never, workspaceId: "00000000-0000-0000-0000-000000000002" } as never,
+      {
+        contactStore: { addEmailToMetadata } as never,
+        workspaceId: "00000000-0000-0000-0000-000000000002",
+      } as never,
     );
     expect(addEmailToMetadata).toHaveBeenCalledWith(
       "00000000-0000-0000-0000-000000000002",
@@ -28,17 +31,20 @@ describe("link_email_to_contact", () => {
     await expect(
       linkEmailToContactTool.handler(
         { contact_id: "00000000-0000-0000-0000-000000000001", email: "not-an-email" },
-        { contactStore: { addEmailToMetadata: vi.fn() } as never, workspaceId: "00000000-0000-0000-0000-000000000002" } as never,
+        {
+          contactStore: { addEmailToMetadata: vi.fn() } as never,
+          workspaceId: "00000000-0000-0000-0000-000000000002",
+        } as never,
       ),
     ).rejects.toThrow();
   });
 
   it("rejects malformed contact_id", async () => {
     await expect(
-      linkEmailToContactTool.handler(
-        { contact_id: "not-uuid", email: "x@y.com" },
-        { contactStore: { addEmailToMetadata: vi.fn() } as never, workspaceId: "00000000-0000-0000-0000-000000000002" } as never,
-      ),
+      linkEmailToContactTool.handler({ contact_id: "not-uuid", email: "x@y.com" }, {
+        contactStore: { addEmailToMetadata: vi.fn() } as never,
+        workspaceId: "00000000-0000-0000-0000-000000000002",
+      } as never),
     ).rejects.toThrow();
   });
 });

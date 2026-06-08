@@ -16,5 +16,19 @@
     "indentStyle": "space",
     "indentWidth": 2,
     "lineWidth": 100
-  }
+  },
+  "overrides": [
+    {
+      "include": ["**/*.test.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": { "noExplicitAny": "off", "noImplicitAnyLet": "off" },
+          "performance": { "noDelete": "off" },
+          "style": { "noUnusedTemplateLiteral": "off", "useTemplate": "off" },
+          "complexity": { "useLiteralKeys": "off" },
+          "correctness": { "noUnnecessaryContinue": "off" }
+        }
+      }
+    }
+  ]
 }

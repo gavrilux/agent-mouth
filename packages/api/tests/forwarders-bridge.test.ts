@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { forwardToBridge } from "../src/forwarders/bridge.js";
 
 describe("forwardToBridge", () => {
@@ -12,11 +12,14 @@ describe("forwardToBridge", () => {
     fetchMock.mockResolvedValueOnce(new Response("ok", { status: 200 }));
     const ok = await forwardToBridge("https://lab.example/webhook", { update_id: 1 });
     expect(ok).toBe(true);
-    expect(fetchMock).toHaveBeenCalledWith("https://lab.example/webhook", expect.objectContaining({
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ update_id: 1 }),
-    }));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://lab.example/webhook",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ update_id: 1 }),
+      }),
+    );
   });
 
   it("returns false on non-2xx and does not throw", async () => {
@@ -32,12 +35,15 @@ describe("forwardToBridge", () => {
   it("includes X-Telegram-Bot-Api-Secret-Token header when secretToken is provided", async () => {
     fetchMock.mockResolvedValueOnce(new Response("ok", { status: 200 }));
     await forwardToBridge("https://lab.example/webhook", { update_id: 1 }, "s3cret");
-    expect(fetchMock).toHaveBeenCalledWith("https://lab.example/webhook", expect.objectContaining({
-      headers: {
-        "Content-Type": "application/json",
-        "X-Telegram-Bot-Api-Secret-Token": "s3cret",
-      },
-    }));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://lab.example/webhook",
+      expect.objectContaining({
+        headers: {
+          "Content-Type": "application/json",
+          "X-Telegram-Bot-Api-Secret-Token": "s3cret",
+        },
+      }),
+    );
   });
 
   it("omits the secret header when secretToken is undefined", async () => {

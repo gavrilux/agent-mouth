@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { Client } from "pg";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { SupabaseKnowledgeFilesRepo } from "../src/knowledge-files-repo.js";
 
 const DATABASE_URL = process.env.PGVECTOR_TEST_URL;
@@ -47,7 +47,9 @@ const DATABASE_URL = process.env.PGVECTOR_TEST_URL;
   });
 
   afterAll(async () => {
-    await client.query(`DROP TABLE knowledge_chunks, knowledge_files, knowledge_sources, workspaces CASCADE`);
+    await client.query(
+      `DROP TABLE knowledge_chunks, knowledge_files, knowledge_sources, workspaces CASCADE`,
+    );
     await client.end();
     await repo.close();
   });

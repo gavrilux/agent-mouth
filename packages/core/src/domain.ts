@@ -1,12 +1,6 @@
 import { z } from "zod";
 
-export const ChannelTypeSchema = z.enum([
-  "telegram",
-  "email",
-  "whatsapp",
-  "discord",
-  "slack",
-]);
+export const ChannelTypeSchema = z.enum(["telegram", "email", "whatsapp", "discord", "slack"]);
 export type ChannelType = z.infer<typeof ChannelTypeSchema>;
 
 export const MessageDirectionSchema = z.enum(["inbound", "outbound"]);

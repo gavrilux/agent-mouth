@@ -1,11 +1,11 @@
 // packages/api/src/email-fetch.ts
 import { InboundMessageSchema } from "@agent-mouth/core";
 import type { SupabaseEmailTokenStore } from "@agent-mouth/storage-supabase";
-import type { GmailDriver } from "@agent-mouth/transport-email";
+import type { FetchResult, GmailDriver } from "@agent-mouth/transport-email";
 import { normalizedEmailToInbound } from "@agent-mouth/transport-email";
 import { logger } from "./logger.js";
 import type { RouterDeps, RouterResult } from "./router.js";
-import { processInbound } from "./router.js";
+import type { processInbound } from "./router.js";
 
 export interface EmailFetchJobData {
   email_address: string;
@@ -35,7 +35,10 @@ export async function handleEmailFetch(deps: EmailFetchDeps): Promise<void> {
     return;
   }
   if (tok.status !== "active") {
-    logger.warn({ email: tok.email_address, status: tok.status }, "email.fetch: token not active, skipping");
+    logger.warn(
+      { email: tok.email_address, status: tok.status },
+      "email.fetch: token not active, skipping",
+    );
     return;
   }
 
@@ -48,7 +51,7 @@ export async function handleEmailFetch(deps: EmailFetchDeps): Promise<void> {
   }
 
   const lastCursor = tok.last_history_id ?? deps.data.history_id;
-  let fetchResult;
+  let fetchResult: FetchResult;
   try {
     fetchResult = await deps.driver.fetchNewMessages({
       auth: { refresh_token: refreshToken, email_address: tok.email_address },
@@ -74,30 +77,37 @@ export async function handleEmailFetch(deps: EmailFetchDeps): Promise<void> {
       continue;
     }
     // Phase 1b debug — log every router result so we can see why agent.respond isn't enqueueing
-    logger.info({
-      kind: result.kind,
-      policy: result.kind === "persisted" ? result.policy : undefined,
-      contactId: result.kind === "persisted" ? result.contactId : undefined,
-      channelType: result.kind === "persisted" ? result.channelType : undefined,
-      externalChatId: result.kind === "persisted" ? result.externalChatId : undefined,
-    }, "email.fetch processInbound result");
+    logger.info(
+      {
+        kind: result.kind,
+        policy: result.kind === "persisted" ? result.policy : undefined,
+        contactId: result.kind === "persisted" ? result.contactId : undefined,
+        channelType: result.kind === "persisted" ? result.channelType : undefined,
+        externalChatId: result.kind === "persisted" ? result.externalChatId : undefined,
+      },
+      "email.fetch processInbound result",
+    );
 
     if (result.kind === "persisted" && result.policy !== "silent") {
-      await deps.queueSend(
-        "agent.respond",
-        {
-          workspaceId: deps.routerDeps.workspaceId,
-          contactId: result.contactId,
-          threadId: result.threadId,
-          channelType: result.channelType,
-          channelId: result.channelId,
-          channelIdentityId: result.channelIdentityId,
-          externalChatId: result.externalChatId,
-          messageId: result.messageId,
-          messageContent: result.messageContent,
-        },
-        { singletonKey: result.messageId },
-      ).catch((err) => logger.error({ err: String(err) }, "email.fetch enqueue agent.respond failed"));
+      await deps
+        .queueSend(
+          "agent.respond",
+          {
+            workspaceId: deps.routerDeps.workspaceId,
+            contactId: result.contactId,
+            threadId: result.threadId,
+            channelType: result.channelType,
+            channelId: result.channelId,
+            channelIdentityId: result.channelIdentityId,
+            externalChatId: result.externalChatId,
+            messageId: result.messageId,
+            messageContent: result.messageContent,
+          },
+          { singletonKey: result.messageId },
+        )
+        .catch((err) =>
+          logger.error({ err: String(err) }, "email.fetch enqueue agent.respond failed"),
+        );
       logger.info({ messageId: result.messageId }, "email.fetch agent.respond enqueued");
     }
   }

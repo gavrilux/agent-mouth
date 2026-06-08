@@ -26,7 +26,9 @@ export class SearchWebTool implements Tool<SearchWebInput> {
   async execute(input: SearchWebInput, _ctx: ToolContext) {
     const start = Date.now();
     try {
-      const out = await this.deps.provider.search(input.query, { maxResults: input.max_results ?? 5 });
+      const out = await this.deps.provider.search(input.query, {
+        maxResults: input.max_results ?? 5,
+      });
       return {
         ok: true,
         output: out,

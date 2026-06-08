@@ -1,5 +1,5 @@
 // packages/storage-supabase/tests/workspace-store.test.ts
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SupabaseWorkspaceStore } from "../src/workspace-store.js";
 
 describe("SupabaseWorkspaceStore", () => {
@@ -14,9 +14,18 @@ describe("SupabaseWorkspaceStore", () => {
 
   it("getDefault returns the default workspace by name", async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(JSON.stringify([
-        { id: "11111111-1111-1111-1111-111111111111", name: "default", owner_user_id: null, plan: "self-host", created_at: "2026-05-20T00:00:00Z" },
-      ]), { status: 200 }),
+      new Response(
+        JSON.stringify([
+          {
+            id: "11111111-1111-1111-1111-111111111111",
+            name: "default",
+            owner_user_id: null,
+            plan: "self-host",
+            created_at: "2026-05-20T00:00:00Z",
+          },
+        ]),
+        { status: 200 },
+      ),
     );
     const store = new SupabaseWorkspaceStore(SUPA_URL, KEY);
     const w = await store.getDefault();

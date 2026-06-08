@@ -1,5 +1,4 @@
 import type {
-  TransportContact,
   Identity,
   ReceiveOptions,
   ReceivedMessage,
@@ -7,6 +6,7 @@ import type {
   SentMessage,
   Transport,
   TransportConfig,
+  TransportContact,
   WaitOptions,
 } from "@agent-mouth/core";
 import type { EmailDriver } from "./drivers/driver.js";

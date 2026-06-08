@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach } from "vitest";
 import type { KnowledgeSource } from "@agent-mouth/core";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
+  _resetKnowledgeRegistry,
+  listKnowledgeSourceTypes,
   registerKnowledgeSourceType,
   resolveKnowledgeSource,
-  listKnowledgeSourceTypes,
-  _resetKnowledgeRegistry,
 } from "../src/registry.js";
 
 describe("knowledge source registry", () => {
@@ -25,8 +25,8 @@ describe("knowledge source registry", () => {
   });
 
   it("throws for unknown type", async () => {
-    await expect(
-      resolveKnowledgeSource({ type: "nope", config: {}, env: {} }),
-    ).rejects.toThrow(/nope/);
+    await expect(resolveKnowledgeSource({ type: "nope", config: {}, env: {} })).rejects.toThrow(
+      /nope/,
+    );
   });
 });

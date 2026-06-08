@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { SupabaseOffsetStore, NoopOffsetStore } from "../src/supabase-offset-store";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NoopOffsetStore, SupabaseOffsetStore } from "../src/supabase-offset-store";
 
 describe("SupabaseOffsetStore", () => {
   beforeEach(() => {

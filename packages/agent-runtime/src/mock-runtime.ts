@@ -1,4 +1,4 @@
-import type { AgentRuntime, AgentContext, AgentResponse, RuntimeConfig } from "./types.js";
+import type { AgentContext, AgentResponse, AgentRuntime, RuntimeConfig } from "./types.js";
 
 export interface MockRuntimeConfig extends RuntimeConfig {
   body?: string;

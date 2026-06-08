@@ -21,7 +21,9 @@ export async function resolveWebSearchProvider(
 ): Promise<WebSearchProvider> {
   const reg = registry.get(name);
   if (!reg) {
-    throw new Error(`No web search provider for "${name}". Known: ${listWebSearchProviders().join(", ") || "(none)"}`);
+    throw new Error(
+      `No web search provider for "${name}". Known: ${listWebSearchProviders().join(", ") || "(none)"}`,
+    );
   }
   const apiKey = env[reg.apiKeyEnv];
   if (!apiKey) {

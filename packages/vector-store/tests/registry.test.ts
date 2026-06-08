@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach } from "vitest";
 import type { VectorStore } from "@agent-mouth/core";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
+  _resetVectorStoreRegistry,
+  listVectorStoreTypes,
   registerVectorStoreType,
   resolveVectorStore,
-  listVectorStoreTypes,
-  _resetVectorStoreRegistry,
 } from "../src/registry.js";
 
 describe("vector store registry", () => {

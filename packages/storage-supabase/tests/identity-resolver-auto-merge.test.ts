@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { SupabaseIdentityResolver } from "../src/identity-resolver.js";
 
 const origFetch = globalThis.fetch;
-afterEach(() => { globalThis.fetch = origFetch; });
+afterEach(() => {
+  globalThis.fetch = origFetch;
+});
 
 const WS_ID = "11111111-1111-1111-1111-111111111111";
 const CH_ID = "22222222-2222-2222-2222-222222222222";
@@ -21,7 +23,9 @@ const channel = {
   created_at: "2026-05-25T00:00:00.000Z",
 };
 
-function makeFetch(routes: Array<{ match: RegExp | string; handler: (init?: RequestInit) => Promise<Response> }>) {
+function makeFetch(
+  routes: Array<{ match: RegExp | string; handler: (init?: RequestInit) => Promise<Response> }>,
+) {
   return vi.fn(async (url: string | URL, init?: RequestInit) => {
     const s = String(url);
     for (const { match, handler } of routes) {
@@ -34,22 +38,50 @@ function makeFetch(routes: Array<{ match: RegExp | string; handler: (init?: Requ
 describe("SupabaseIdentityResolver.resolveOrCreate (email)", () => {
   it("returns existing Contact on exact ChannelIdentity match (case-insensitive)", async () => {
     globalThis.fetch = makeFetch([
-      { match: /\/rest\/v1\/channels\?/, handler: async () => new Response(JSON.stringify([channel]), { status: 200 }) },
-      { match: /\/rest\/v1\/channel_identities/, handler: async () => new Response(JSON.stringify([{
-        id: CI_UUID, contact_id: C_EXISTING, channel_id: CH_ID,
-        identifier: "marco@thecuina.com", verified: false,
-      }]), { status: 200 }) },
-      { match: /\/rest\/v1\/contacts\?/, handler: async () => new Response(JSON.stringify([{
-        id: C_EXISTING, workspace_id: WS_ID, display_name: "Marco",
-        notes: "", metadata: {}, created_at: "2026-05-25T00:00:00.000Z",
-      }]), { status: 200 }) },
+      {
+        match: /\/rest\/v1\/channels\?/,
+        handler: async () => new Response(JSON.stringify([channel]), { status: 200 }),
+      },
+      {
+        match: /\/rest\/v1\/channel_identities/,
+        handler: async () =>
+          new Response(
+            JSON.stringify([
+              {
+                id: CI_UUID,
+                contact_id: C_EXISTING,
+                channel_id: CH_ID,
+                identifier: "marco@thecuina.com",
+                verified: false,
+              },
+            ]),
+            { status: 200 },
+          ),
+      },
+      {
+        match: /\/rest\/v1\/contacts\?/,
+        handler: async () =>
+          new Response(
+            JSON.stringify([
+              {
+                id: C_EXISTING,
+                workspace_id: WS_ID,
+                display_name: "Marco",
+                notes: "",
+                metadata: {},
+                created_at: "2026-05-25T00:00:00.000Z",
+              },
+            ]),
+            { status: 200 },
+          ),
+      },
     ]);
 
     const r = new SupabaseIdentityResolver("https://supabase", "anon");
     const result = await r.resolveOrCreate({
       workspaceId: WS_ID,
       channelType: "email",
-      identifier: "Marco@TheCuina.com",  // mixed case — should still match
+      identifier: "Marco@TheCuina.com", // mixed case — should still match
       displayName: "Marco",
     });
     expect(result.contact.id).toBe(C_EXISTING);
@@ -60,16 +92,27 @@ describe("SupabaseIdentityResolver.resolveOrCreate (email)", () => {
     let metadataLookupCalled = false;
     let identityCreateCalled = false;
     globalThis.fetch = makeFetch([
-      { match: /\/rest\/v1\/channels\?/, handler: async () => new Response(JSON.stringify([channel]), { status: 200 }) },
+      {
+        match: /\/rest\/v1\/channels\?/,
+        handler: async () => new Response(JSON.stringify([channel]), { status: 200 }),
+      },
       {
         match: /\/rest\/v1\/channel_identities/,
         handler: async (init) => {
           if (init?.method === "POST") {
             identityCreateCalled = true;
-            return new Response(JSON.stringify([{
-              id: CI_NEW, contact_id: C_MERGED, channel_id: CH_ID,
-              identifier: "marco@thecuina.com", verified: false,
-            }]), { status: 201 });
+            return new Response(
+              JSON.stringify([
+                {
+                  id: CI_NEW,
+                  contact_id: C_MERGED,
+                  channel_id: CH_ID,
+                  identifier: "marco@thecuina.com",
+                  verified: false,
+                },
+              ]),
+              { status: 201 },
+            );
           }
           return new Response(JSON.stringify([]), { status: 200 }); // no exact CI match
         },
@@ -80,11 +123,19 @@ describe("SupabaseIdentityResolver.resolveOrCreate (email)", () => {
           // Only GET requests should be the metadata lookup
           if (!init?.method || init.method === "GET") {
             metadataLookupCalled = true;
-            return new Response(JSON.stringify([{
-              id: C_MERGED, workspace_id: WS_ID, display_name: "Marco",
-              notes: "", metadata: { email_addresses: ["marco@thecuina.com"] },
-              created_at: "2026-05-25T00:00:00.000Z",
-            }]), { status: 200 });
+            return new Response(
+              JSON.stringify([
+                {
+                  id: C_MERGED,
+                  workspace_id: WS_ID,
+                  display_name: "Marco",
+                  notes: "",
+                  metadata: { email_addresses: ["marco@thecuina.com"] },
+                  created_at: "2026-05-25T00:00:00.000Z",
+                },
+              ]),
+              { status: 200 },
+            );
           }
           // POST/PATCH shouldn't be reached in auto-merge flow
           throw new Error(`unexpected contacts POST in auto-merge test`);
@@ -100,7 +151,7 @@ describe("SupabaseIdentityResolver.resolveOrCreate (email)", () => {
       displayName: "Marco",
     });
     expect(result.contact.id).toBe(C_MERGED);
-    expect(result.created).toBe(true);    // new ChannelIdentity, existing Contact
+    expect(result.created).toBe(true); // new ChannelIdentity, existing Contact
     expect(identityCreateCalled).toBe(true);
     expect(metadataLookupCalled).toBe(true);
   });
@@ -108,15 +159,26 @@ describe("SupabaseIdentityResolver.resolveOrCreate (email)", () => {
   it("creates new Contact + ChannelIdentity on no match", async () => {
     let contactCreateCalled = false;
     globalThis.fetch = makeFetch([
-      { match: /\/rest\/v1\/channels\?/, handler: async () => new Response(JSON.stringify([channel]), { status: 200 }) },
+      {
+        match: /\/rest\/v1\/channels\?/,
+        handler: async () => new Response(JSON.stringify([channel]), { status: 200 }),
+      },
       {
         match: /\/rest\/v1\/channel_identities/,
         handler: async (init) => {
           if (init?.method === "POST") {
-            return new Response(JSON.stringify([{
-              id: CI_NEW, contact_id: C_NEW, channel_id: CH_ID,
-              identifier: "stranger@example.com", verified: false,
-            }]), { status: 201 });
+            return new Response(
+              JSON.stringify([
+                {
+                  id: CI_NEW,
+                  contact_id: C_NEW,
+                  channel_id: CH_ID,
+                  identifier: "stranger@example.com",
+                  verified: false,
+                },
+              ]),
+              { status: 201 },
+            );
           }
           return new Response(JSON.stringify([]), { status: 200 });
         },
@@ -126,12 +188,21 @@ describe("SupabaseIdentityResolver.resolveOrCreate (email)", () => {
         handler: async (init) => {
           if (init?.method === "POST") {
             contactCreateCalled = true;
-            return new Response(JSON.stringify([{
-              id: C_NEW, workspace_id: WS_ID, display_name: "Stranger",
-              notes: "", metadata: {}, created_at: "2026-05-25T00:00:00.000Z",
-            }]), { status: 201 });
+            return new Response(
+              JSON.stringify([
+                {
+                  id: C_NEW,
+                  workspace_id: WS_ID,
+                  display_name: "Stranger",
+                  notes: "",
+                  metadata: {},
+                  created_at: "2026-05-25T00:00:00.000Z",
+                },
+              ]),
+              { status: 201 },
+            );
           }
-          return new Response(JSON.stringify([]), { status: 200 });   // no metadata match
+          return new Response(JSON.stringify([]), { status: 200 }); // no metadata match
         },
       },
     ]);

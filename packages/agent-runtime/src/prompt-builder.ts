@@ -14,7 +14,9 @@ Reglas de output:
 - Si no estás seguro de la respuesta o el tema te supera, marca should_escalate=true.`;
 }
 
-export function buildUserMessages(ctx: AgentContext): Array<{ role: "user" | "assistant"; content: string }> {
+export function buildUserMessages(
+  ctx: AgentContext,
+): Array<{ role: "user" | "assistant"; content: string }> {
   const msgs = ctx.threadHistory.map((m) => ({
     role: (m.direction === "inbound" ? "user" : "assistant") as "user" | "assistant",
     content: m.content,

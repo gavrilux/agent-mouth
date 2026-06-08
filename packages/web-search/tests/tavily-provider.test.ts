@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TavilyProvider } from "../src/tavily-provider.js";
 
 describe("TavilyProvider", () => {
@@ -11,7 +11,12 @@ describe("TavilyProvider", () => {
       json: async () => ({
         answer: "Node 22 is current LTS.",
         results: [
-          { title: "Node Releases", url: "https://nodejs.org/en", content: "Node 22.0.0 ...", published_date: "2026-04-01" },
+          {
+            title: "Node Releases",
+            url: "https://nodejs.org/en",
+            content: "Node 22.0.0 ...",
+            published_date: "2026-04-01",
+          },
         ],
       }),
     });

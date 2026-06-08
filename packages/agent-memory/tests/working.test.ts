@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { WorkingMemoryBuilder } from "../src/working.js";
 
 const fakeStore = {
@@ -10,7 +10,9 @@ const fakeStore = {
       content: `msg ${i}`,
       created_at: new Date().toISOString(),
     })) as any,
-  insert: async () => { throw new Error("not used"); },
+  insert: async () => {
+    throw new Error("not used");
+  },
 };
 
 describe("WorkingMemoryBuilder", () => {

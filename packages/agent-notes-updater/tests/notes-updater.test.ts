@@ -1,11 +1,16 @@
-import { describe, it, expect, vi } from "vitest";
-import { NotesUpdater } from "../src/notes-updater.js";
 import { MockRuntime } from "@agent-mouth/agent-runtime";
+import { describe, expect, it, vi } from "vitest";
+import { NotesUpdater } from "../src/notes-updater.js";
 
 const thread = {
-  id: "t1", workspace_id: "w1", contact_id: "c1", channel_id: "ch1",
-  external_thread_id: null, related_thread_ids: [],
-  last_message_at: null, closed: false,
+  id: "t1",
+  workspace_id: "w1",
+  contact_id: "c1",
+  channel_id: "ch1",
+  external_thread_id: null,
+  related_thread_ids: [],
+  last_message_at: null,
+  closed: false,
   notes_last_updated_at: null,
   created_at: new Date(Date.now() - 86400_000).toISOString(),
 };
@@ -13,13 +18,14 @@ const thread = {
 const baseDeps = (msgCount: number, opts?: { closed?: boolean; throttleHours?: number }) => ({
   threads: {
     resolveOrCreate: vi.fn(),
-    get: async () => ({
-      ...thread,
-      closed: opts?.closed ?? false,
-      notes_last_updated_at: opts?.throttleHours
-        ? new Date(Date.now() - opts.throttleHours * 3600_000).toISOString()
-        : null,
-    }) as any,
+    get: async () =>
+      ({
+        ...thread,
+        closed: opts?.closed ?? false,
+        notes_last_updated_at: opts?.throttleHours
+          ? new Date(Date.now() - opts.throttleHours * 3600_000).toISOString()
+          : null,
+      }) as any,
     markNotesUpdated: vi.fn(async () => {}),
   },
   messages: {

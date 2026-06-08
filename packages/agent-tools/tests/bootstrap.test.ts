@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach } from "vitest";
 import type {
-  WebSearchProvider,
-  VectorStore,
   EmbeddingProvider,
   KnowledgeSource,
+  VectorStore,
+  WebSearchProvider,
 } from "@agent-mouth/core";
-import { bootstrapTools, listTools, _resetToolRegistry } from "../src/index.js";
+import { beforeEach, describe, expect, it } from "vitest";
+import { _resetToolRegistry, bootstrapTools, listTools } from "../src/index.js";
 
 const fakeWebSearch: WebSearchProvider = {
   name: "fake",
@@ -47,7 +47,9 @@ describe("bootstrapTools", () => {
       embedder: fakeEmbedder,
       knowledgeSource: fakeKnowledge,
     });
-    const names = listTools().map((t) => t.name).sort();
+    const names = listTools()
+      .map((t) => t.name)
+      .sort();
     expect(names).toEqual(["read_knowledge_file", "search_knowledge", "search_web"]);
   });
 });

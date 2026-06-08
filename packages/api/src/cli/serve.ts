@@ -1,5 +1,5 @@
+import { type TelegramConfig, TelegramTransport } from "@agent-mouth/transport-telegram";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { TelegramTransport, type TelegramConfig } from "@agent-mouth/transport-telegram";
 import { defaultConfigPath, loadConfig } from "../config.js";
 import { logger } from "../logger.js";
 import { buildServer } from "../server.js";

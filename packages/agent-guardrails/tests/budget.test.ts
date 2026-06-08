@@ -1,15 +1,16 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { checkBudget } from "../src/budget.js";
 
 const auditStub = (spent: number) => ({
   sumCostUsdSince: async () => spent,
   countSentOrDraftSince: async () => 0,
   findRespondedFor: async () => null,
-  write: async () => ({} as any),
+  write: async () => ({}) as any,
 });
 
 const wsStub = (cap: number) => ({
-  getDefault: async () => ({ id: "w1", daily_budget_usd_cap: cap, name: "T", plan: "self-host", created_at: "" } as any),
+  getDefault: async () =>
+    ({ id: "w1", daily_budget_usd_cap: cap, name: "T", plan: "self-host", created_at: "" }) as any,
 });
 
 describe("checkBudget", () => {

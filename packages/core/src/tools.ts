@@ -33,8 +33,5 @@ export interface Tool<TInput = unknown, TOutput = unknown> {
   readonly description: string;
   readonly inputSchema: JsonSchema;
   readonly requiresExplicitGrant?: boolean;
-  execute(
-    input: TInput,
-    ctx: ToolContext,
-  ): Promise<ToolExecutionResult<TOutput>>;
+  execute(input: TInput, ctx: ToolContext): Promise<ToolExecutionResult<TOutput>>;
 }

@@ -25,7 +25,7 @@ async function fetchJwks(): Promise<object> {
 }
 
 export interface GooglePushJwtPayload {
-  email: string;        // service account email
+  email: string; // service account email
   email_verified?: boolean;
   iss: string;
   aud: string;

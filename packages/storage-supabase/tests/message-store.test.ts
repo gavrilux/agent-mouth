@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SupabaseMessageStore } from "../src/message-store.js";
 
 const SUPA_URL = "https://x.supabase.co";
@@ -17,19 +17,38 @@ describe("SupabaseMessageStore", () => {
   });
 
   it("insert POSTs to messages and returns the row", async () => {
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify([
-      {
-        id: M1, thread_id: THREAD, channel_id: CHAN, channel_identity_id: null,
-        direction: "inbound", content: "hola", attachments: [], raw_payload: { x: 1 },
-        external_message_id: "42", sent_by: null, created_at: "2026-05-20T00:00:00Z",
-      },
-    ]), { status: 201 }));
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify([
+          {
+            id: M1,
+            thread_id: THREAD,
+            channel_id: CHAN,
+            channel_identity_id: null,
+            direction: "inbound",
+            content: "hola",
+            attachments: [],
+            raw_payload: { x: 1 },
+            external_message_id: "42",
+            sent_by: null,
+            created_at: "2026-05-20T00:00:00Z",
+          },
+        ]),
+        { status: 201 },
+      ),
+    );
 
     const s = new SupabaseMessageStore(SUPA_URL, KEY);
     const m = await s.insert({
-      threadId: THREAD, channelId: CHAN, channelIdentityId: null,
-      direction: "inbound", content: "hola", attachments: [],
-      rawPayload: { x: 1 }, externalMessageId: "42", sentBy: null,
+      threadId: THREAD,
+      channelId: CHAN,
+      channelIdentityId: null,
+      direction: "inbound",
+      content: "hola",
+      attachments: [],
+      rawPayload: { x: 1 },
+      externalMessageId: "42",
+      sentBy: null,
     });
     expect(m.id).toBe(M1);
     expect(fetchMock).toHaveBeenCalledWith(
@@ -54,18 +73,36 @@ describe("SupabaseMessageStore", () => {
 
   it("waitForNew polls until new messages appear or timeout fires", async () => {
     fetchMock
-      .mockResolvedValueOnce(new Response("[]", { status: 200 }))     // poll 1: nothing
-      .mockResolvedValueOnce(new Response(JSON.stringify([            // poll 2: hit
-        { id: "cccccccc-cccc-cccc-cccc-cccccccccc02", thread_id: THREAD, channel_id: CHAN, channel_identity_id: null,
-          direction: "inbound", content: "yo", attachments: [], raw_payload: null,
-          external_message_id: "43", sent_by: null, created_at: "2026-05-20T00:00:01Z" },
-      ]), { status: 200 }));
+      .mockResolvedValueOnce(new Response("[]", { status: 200 })) // poll 1: nothing
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            // poll 2: hit
+            {
+              id: "cccccccc-cccc-cccc-cccc-cccccccccc02",
+              thread_id: THREAD,
+              channel_id: CHAN,
+              channel_identity_id: null,
+              direction: "inbound",
+              content: "yo",
+              attachments: [],
+              raw_payload: null,
+              external_message_id: "43",
+              sent_by: null,
+              created_at: "2026-05-20T00:00:01Z",
+            },
+          ]),
+          { status: 200 },
+        ),
+      );
 
     const s = new SupabaseMessageStore(SUPA_URL, KEY);
     // Compress polling to make the test fast.
     (s as unknown as { pollIntervalMs: number }).pollIntervalMs = 5;
     const out = await s.waitForNew({
-      workspaceId: WS, sinceCreatedAt: "2026-05-20T00:00:00Z", timeoutSeconds: 1,
+      workspaceId: WS,
+      sinceCreatedAt: "2026-05-20T00:00:00Z",
+      timeoutSeconds: 1,
     });
     expect(out).toHaveLength(1);
     expect(out[0].content).toBe("yo");
@@ -76,7 +113,9 @@ describe("SupabaseMessageStore", () => {
     const s = new SupabaseMessageStore(SUPA_URL, KEY);
     (s as unknown as { pollIntervalMs: number }).pollIntervalMs = 5;
     const out = await s.waitForNew({
-      workspaceId: WS, sinceCreatedAt: "2026-05-20T00:00:00Z", timeoutSeconds: 0,
+      workspaceId: WS,
+      sinceCreatedAt: "2026-05-20T00:00:00Z",
+      timeoutSeconds: 0,
     });
     expect(out).toEqual([]);
   });
